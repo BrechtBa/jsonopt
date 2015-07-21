@@ -1,0 +1,364 @@
+
+
+import numpy as np
+import sympy
+import pyipopt
+import re
+
+class Problem:
+	def __init__(self):
+		self.variables = []
+		self.objective = None
+		self.constraints = []
+
+	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20):
+		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
+		evalvar = 'symvar[{0}]'.format(len(self.variables))
+		self.variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound) )
+		return self.variables[-1]
+
+	def get_variable(self,name):
+		ind = [i.name for i in self.variables].index(name)
+		return self.variables[ind]
+
+	def add_parameter(self,name,value):
+		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
+		evalvar = 'symvar[{0}]'.format(len(self.variables))
+		self.variables.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value) )
+		return self.variables[-1]
+
+	def set_objective(self,expressionstring):
+		self.objective = Function(expressionstring,self.variables)
+
+	def add_constraint(self,expressionstring,lowerbound=0.0,upperbound=0.0,name=''):
+		self.constraints.append( Constraint(expressionstring,self.variables,lowerbound,upperbound,name) )
+		return self.constraints[-1]
+
+	def get_constraint(self,name):
+		ind = [i.name for i in self.constraints].index(name)
+		return self.constraints[ind]
+
+
+	# callbacks
+	def gradient(self,symvar):
+		return self.objective.gradient(symvar);
+
+	def constraint(self,symvar):
+		result = []
+		for c in self.constraints:
+			result.append( c(symvar) )
+
+		return np.array(result,dtype=np.float)
+
+	def jacobian(self,symvar,flag):
+		if flag:
+			row = []
+			col = []
+			
+			for i,c in enumerate(self.constraints):
+				for j,g in enumerate(c.gradientexpression):
+					if g != '0':
+
+						row.append(i)
+						col.append(j)
+
+			return (np.array(row),np.array(col))
+		else:
+			val = []
+			for i,c in enumerate(self.constraints):
+				grad = c.gradient(symvar)
+				for j,g in enumerate(c.gradientexpression):
+					if g != '0':
+						val.append(grad[j])
+
+			return np.array(val,dtype=np.float)
+
+
+	# get functions
+	def get_variable_lowerbounds(self):
+		values = []
+		for i in self.variables:
+			values.append(i.lowerbound)
+		
+		return np.array(values)
+
+	def get_variable_upperbounds(self):
+		values = []
+		for i in self.variables:
+			values.append(i.upperbound)
+		
+		return np.array(values)
+
+	def get_constraint_lowerbounds(self):
+		values = []
+		for i in self.constraints:
+			values.append(i.lowerbound)
+		
+		return np.array(values)
+
+	def get_constraint_upperbounds(self):
+		values = []
+		for i in self.constraints:
+			values.append(i.upperbound)
+		
+		return np.array(values)
+
+
+	# problem solution
+	def solve(self,x0):
+
+		nlp = pyipopt.create(len(self.variables), self.get_variable_lowerbounds(), self.get_variable_upperbounds(), len(self.constraints), self.get_constraint_lowerbounds(), self.get_constraint_upperbounds(), len(self.jacobian(x0,False)), 0, self.objective, self.gradient, self.constraint, self.jacobian)
+		x, zl, zu, constraint_multipliers, obj, status = nlp.solve(x0)
+
+		for i,s in zip(self.variables,x):
+			i.sol = s
+
+		nlp.close()
+
+	def get_solution(self):
+		return np.array([v.sol for v in self.variables])
+
+
+# Variables
+class Variable:
+	def __init__(self,name,symvar,evalvar,lowerbound=-1.0e20,upperbound=1.0e20):
+		self.name = name
+		self.lowerbound = lowerbound
+		self.upperbound = upperbound
+		self._symvar = symvar
+		self._evalvar = evalvar
+		self.sol = None
+ 
+	def set_lowerbound(self,value):
+		self.lowerbound = value
+
+	def set_upperbound(self,value):
+		self.upperbound = value
+
+
+# Functions
+class Function:
+	def __init__(self,expressionstring,variables):
+
+		self.variables = variables
+
+		self.expression = expressionstring
+		self.sympyexpression = self.expression
+		self.evaluationstring = self.expression
+
+		self.gradientexpression = []
+		self.gradientsympyexpression = []
+		self.gradientevaluationstring = ''
+
+		specialfunctions = {'log(':'np.log(','exp(':'np.exp('}
+
+		# parse the function
+		for v in self.variables:
+			self.sympyexpression = self.sympyexpression.replace(v.name,str(v._symvar))
+			self.evaluationstring = self.evaluationstring.replace(v.name,v._evalvar )
+		
+
+		# create gradients
+		gradientevaluationstring = []
+		for v in self.variables:
+			try:
+				self.gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
+			except:
+				raise Exception('Error while diferentiating constraint: '+self.expression)
+
+		for g in self.gradientsympyexpression:
+			temp_gradientexpression = g
+			temp_gradientevaluationstring = g
+			for v in reversed(self.variables):
+				# reversed so x34 get replaced before x3
+				temp_gradientexpression = temp_gradientexpression.replace(str(v._symvar),v.name)
+				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(v._symvar),v._evalvar)
+
+			self.gradientexpression.append( temp_gradientexpression )
+			gradientevaluationstring.append( temp_gradientevaluationstring )
+
+		self.gradientevaluationstring = 'np.array([' + ','.join(gradientevaluationstring) + '],dtype=np.float)'
+
+		# replace special functions with their numpy equivalent
+		for f in specialfunctions:
+			self.evaluationstring = self.evaluationstring.replace(f,specialfunctions[f])
+			self.gradientevaluationstring = self.gradientevaluationstring.replace(f,specialfunctions[f])
+			
+	def __call__(self,symvar):
+		return eval(self.evaluationstring)
+
+
+	def gradient(self,symvar):
+		return eval(self.gradientevaluationstring)
+
+
+# Constraint
+class Constraint(Function):
+	def __init__(self,expressionstring,variables,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,expressionstring,variables)
+		self.lowerbound = lowerbound
+		self.upperbound = upperbound
+		self.name = name
+
+	def set_lowerbound(self,value):
+		self.lowerbound = value
+
+	def set_upperbound(self,value):
+		self.upperbound = value
+
+
+
+
+
+class Expression:
+	def __init__(self,expression,indexnames,indexvalues):
+		self.expression = expression
+		self.indexnames = indexnames
+		self.indexvalues = indexvalues
+		
+	def parse(self):
+		"""
+		expand the expression
+		"""
+		expression_expanded = self.expression
+
+		# split the expression into sub expressions
+		expression_list = self.parse_braces()
+		
+		if len(expression_list)>0:
+			print('sub:')
+			for e in expression_list:
+				for indexname,indexvalue in zip(self.indexnames,self.indexvalues):
+					if e.expression[-len(indexname)-1:] == ','+indexname:
+						esub = Expression(e.expression[:-len(indexname)-1],self.indexnames,self.indexvalues)
+						
+						print(esub.expression)
+						expression_expanded = '+'.join(esub.parse(),indexname,indexvalue)
+
+		else:
+			print('end:')
+			print(expression_expanded)
+			# there are no sub expressions
+			for indexname,indexvalue in zip(self.indexnames,self.indexvalues):
+				print(expression_expanded)
+				expression_expanded = self.replace_index(expression_expanded,indexname,indexvalue)
+				
+		print('return')
+		print(expression_expanded)
+		# go one level up
+		return expression_expanded
+
+		"""
+		expression_expanded = self.expression
+
+		# expand sums in expression
+		sumstart = re.search(r'sum\(',expression_expanded)
+		while sumstart:
+
+			startind =  sumstart.start(0)
+			argstartind = startind+4
+			sumindex = False
+			for i,index in enumerate(self.indexnames):
+				sumend = re.search(r','+index+'\)',expression_expanded[argstartind:])
+				if sumend:
+					endind = argstartind+sumend.end(0)
+					argendind = argstartind+sumend.start(0)
+					suminbetween = re.search(r'sum\(',expression_expanded[argstartind:argendind])
+					
+					if not suminbetween:
+						sumindex = i
+						break
+		
+			if sumindex:
+				# expand the expression
+				sumlist = self.replace_index( expression_expanded[argstartind:argendind] ,self.indexnames[sumindex],self.indexvalues[sumindex])
+				    
+				sumexpansion = '(' + '+'.join(sumlist) +')'
+				expression_expanded = expression_expanded[:startind] + sumexpansion + expression_expanded[endind:]
+
+			else:
+				# there are nested sums so something needs to be done to not get stuck in the while loop
+				raise Exception('Sum in expression not valid: '+expression_expanded)
+				
+				
+			sumstart = re.search(r'sum\(',expression_expanded)
+
+
+		# expand all list indices
+		for index,value in zip(self.indexnames,self.indexvalues):
+
+			expression_expanded = self.replace_index(expression_expanded,index,[value[0]])[0]
+
+		return expression_expanded
+		"""
+
+	def replace_index(self,expression,index,values):
+		pre = ['[',',']
+		delta = [-3,-2,-1,+1,+2,+3]
+
+		expression_list = []
+		for v in values:
+			temp = expression
+			for p in pre:
+				for d in delta:
+					temp = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(v),temp)
+
+				temp = re.sub(re.escape(p)+index,p+'{:.0f}'.format(v),temp)
+
+			expression_list.append(temp)
+
+		return expression_list
+
+
+	def find_sum(self):
+		"""
+		returns a list of the outer most sums in the expression
+		"""
+
+		expression = []
+		argument = []
+		index = []
+
+		sum_code = 'sum'
+		brace_open = '('
+		brace_close = ')'
+
+		start = self.expression.find(sum_code)
+		startarg = start + len(sum_code)
+
+		# find the matching brace_close
+		if start>=0:
+			counter = 0
+			for end,char in enumerate(self.expression[startarg:]):
+				if char == brace_open:
+					counter = counter + 1
+				if char == brace_close:    
+					counter = counter - 1
+
+				if counter==0:
+					cur_expression = self.expression[start:startarg+end+1]
+					
+					
+ 					# find the last occurring ','
+					for i,c in enumerate(reversed(cur_expression)):
+						if c==',':
+							cur_index = cur_expression[-i:-1]
+							break
+
+
+					expression = expression + [cur_expression]
+					argument = argument + [Expression(cur_expression[len(sum_code)+1:-i-1],self.indexnames,self.indexvalues)]
+					index = index + [cur_index]
+					
+					rest = Expression(self.expression[startarg+end:],self.indexnames,self.indexvalues)
+					rest_expression,rest_argument,rest_index = rest.find_sum()
+
+					expression = expression + rest_expression
+					argument = argument + rest_argument
+					index = index + rest_index	
+
+			if counter != 0:
+				raise Exception('Non matching delimiters: '+expression)
+
+		return (expression,argument,index)
+
