@@ -251,7 +251,7 @@ class Expression:
 
 		for p in pre:
 			for d in delta:
-				expression = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(value),expression)
+				expression = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(value+d),expression)
 
 			expression = re.sub(re.escape(p)+index,p+'{:.0f}'.format(value),expression)
 

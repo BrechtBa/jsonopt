@@ -45,7 +45,7 @@ print( index )
 
 print(' ')
 print('parse simple:')
-expression = parsepyipopt.Expression('p[i,j] + 5*q[i] + 10*r[j,i]',['i','j'],[[0],[1]])
+expression = parsepyipopt.Expression('p[i,j] + 5*q[i] + 10*r[j-1,i]',['i','j'],[[0],[1]])
 print(expression.string)
 print(expression.parse())
 
