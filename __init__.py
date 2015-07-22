@@ -2,7 +2,7 @@
 
 import numpy as np
 import sympy
-import pyipopt
+#import pyipopt
 import re
 
 class Problem:
@@ -138,13 +138,14 @@ class Variable:
 
 # Functions
 class Function:
-	def __init__(self,expressionstring,variables):
+	def __init__(self,expression,variables):
 
 		self.variables = variables
 
-		self.expression = expressionstring
-		self.sympyexpression = self.expression
-		self.evaluationstring = self.expression
+		self.expression = expression
+		self.parsedexpression = self.expression.parse()
+		self.sympyexpression = self.parsedexpression
+		self.evaluationstring = self.parsedexpression
 
 		self.gradientexpression = []
 		self.gradientsympyexpression = []
@@ -164,7 +165,7 @@ class Function:
 			try:
 				self.gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
 			except:
-				raise Exception('Error while diferentiating constraint: '+self.expression)
+				raise Exception('Error while diferentiating constraint: '+self.parsedexpression)
 
 		for g in self.gradientsympyexpression:
 			temp_gradientexpression = g
@@ -194,8 +195,8 @@ class Function:
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,expressionstring,variables,lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,expressionstring,variables)
+	def __init__(self,expression,variables,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,expression,variables)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name
@@ -211,8 +212,11 @@ class Constraint(Function):
 
 
 class Expression:
-	def __init__(self,expression,indexnames,indexvalues):
-		self.expression = expression
+	"""
+	A class to parse mathematical expressions containing indexes and sums as commonly encountered in optimization problem definitions
+	"""
+	def __init__(self,string,indexnames,indexvalues):
+		self.string = string
 		self.indexnames = indexnames
 		self.indexvalues = indexvalues
 		
@@ -220,101 +224,46 @@ class Expression:
 		"""
 		expand the expression
 		"""
-		expression_expanded = self.expression
+		string_expanded = self.string
 
-		# split the expression into sub expressions
-		expression_list = self.parse_braces()
+		# parse sums
+		sum_expression,sum_argument,sum_index = self.find_sum()
 		
-		if len(expression_list)>0:
-			print('sub:')
-			for e in expression_list:
+		if len(sum_expression)>0:
+			for s,a,i in zip(sum_expression,sum_argument,sum_index):
 				for indexname,indexvalue in zip(self.indexnames,self.indexvalues):
-					if e.expression[-len(indexname)-1:] == ','+indexname:
-						esub = Expression(e.expression[:-len(indexname)-1],self.indexnames,self.indexvalues)
+					if indexname == i:
+						# create a string with the expand the sum 
+						sum_expanded = re.sub( re.escape(s.string) ,'(' + '+'.join([self.replace_index(a.string,i,v) for v in indexvalue]) + ')' ,string_expanded)
+						#create a new expression with the sum expanded and parse it
+						string_expanded = Expression(sum_expanded,self.indexnames,self.indexvalues).parse()
 						
-						print(esub.expression)
-						expression_expanded = '+'.join(esub.parse(),indexname,indexvalue)
-
 		else:
-			print('end:')
-			print(expression_expanded)
 			# there are no sub expressions
 			for indexname,indexvalue in zip(self.indexnames,self.indexvalues):
-				print(expression_expanded)
-				expression_expanded = self.replace_index(expression_expanded,indexname,indexvalue)
+				string_expanded = self.replace_index(string_expanded,indexname,indexvalue[0])
 				
-		print('return')
-		print(expression_expanded)
 		# go one level up
-		return expression_expanded
+		return string_expanded
 
-		"""
-		expression_expanded = self.expression
-
-		# expand sums in expression
-		sumstart = re.search(r'sum\(',expression_expanded)
-		while sumstart:
-
-			startind =  sumstart.start(0)
-			argstartind = startind+4
-			sumindex = False
-			for i,index in enumerate(self.indexnames):
-				sumend = re.search(r','+index+'\)',expression_expanded[argstartind:])
-				if sumend:
-					endind = argstartind+sumend.end(0)
-					argendind = argstartind+sumend.start(0)
-					suminbetween = re.search(r'sum\(',expression_expanded[argstartind:argendind])
-					
-					if not suminbetween:
-						sumindex = i
-						break
-		
-			if sumindex:
-				# expand the expression
-				sumlist = self.replace_index( expression_expanded[argstartind:argendind] ,self.indexnames[sumindex],self.indexvalues[sumindex])
-				    
-				sumexpansion = '(' + '+'.join(sumlist) +')'
-				expression_expanded = expression_expanded[:startind] + sumexpansion + expression_expanded[endind:]
-
-			else:
-				# there are nested sums so something needs to be done to not get stuck in the while loop
-				raise Exception('Sum in expression not valid: '+expression_expanded)
-				
-				
-			sumstart = re.search(r'sum\(',expression_expanded)
-
-
-		# expand all list indices
-		for index,value in zip(self.indexnames,self.indexvalues):
-
-			expression_expanded = self.replace_index(expression_expanded,index,[value[0]])[0]
-
-		return expression_expanded
-		"""
-
-	def replace_index(self,expression,index,values):
+	def replace_index(self,expression,index,value):
 		pre = ['[',',']
 		delta = [-3,-2,-1,+1,+2,+3]
 
-		expression_list = []
-		for v in values:
-			temp = expression
-			for p in pre:
-				for d in delta:
-					temp = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(v),temp)
+		for p in pre:
+			for d in delta:
+				expression = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(value),expression)
 
-				temp = re.sub(re.escape(p)+index,p+'{:.0f}'.format(v),temp)
+			expression = re.sub(re.escape(p)+index,p+'{:.0f}'.format(value),expression)
 
-			expression_list.append(temp)
-
-		return expression_list
+		return expression
 
 
 	def find_sum(self):
 		"""
 		returns a list of the outer most sums in the expression
 		"""
-
+		
 		expression = []
 		argument = []
 		index = []
@@ -323,42 +272,41 @@ class Expression:
 		brace_open = '('
 		brace_close = ')'
 
-		start = self.expression.find(sum_code)
+		start = self.string.find(sum_code)
 		startarg = start + len(sum_code)
-
+		
 		# find the matching brace_close
 		if start>=0:
 			counter = 0
-			for end,char in enumerate(self.expression[startarg:]):
+			for end,char in enumerate(self.string[startarg:]):
 				if char == brace_open:
 					counter = counter + 1
 				if char == brace_close:    
 					counter = counter - 1
 
 				if counter==0:
-					cur_expression = self.expression[start:startarg+end+1]
+					sum_string = self.string[start:startarg+end+1]
 					
 					
  					# find the last occurring ','
-					for i,c in enumerate(reversed(cur_expression)):
+					for i,c in enumerate(reversed(sum_string)):
 						if c==',':
-							cur_index = cur_expression[-i:-1]
+							sum_index = sum_string[-i:-1]
 							break
 
+					expression = [Expression(sum_string,self.indexnames,self.indexvalues)]
+					argument = [Expression(sum_string[len(sum_code)+1:-i-1],self.indexnames,self.indexvalues)]
+					index = [sum_index]
 
-					expression = expression + [cur_expression]
-					argument = argument + [Expression(cur_expression[len(sum_code)+1:-i-1],self.indexnames,self.indexvalues)]
-					index = index + [cur_index]
-					
-					rest = Expression(self.expression[startarg+end:],self.indexnames,self.indexvalues)
+					rest = Expression(self.string[startarg+end+1:],self.indexnames,self.indexvalues)
 					rest_expression,rest_argument,rest_index = rest.find_sum()
 
 					expression = expression + rest_expression
 					argument = argument + rest_argument
 					index = index + rest_index	
-
+					break
+					
 			if counter != 0:
-				raise Exception('Non matching delimiters: '+expression)
+				raise Exception('Non matching delimiters: '+ expression[-1].string)
 
 		return (expression,argument,index)
-
