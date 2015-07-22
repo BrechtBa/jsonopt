@@ -1,12 +1,11 @@
 import numpy as np
-import parsepyipopt
+import parsepyipopt as pp
 
-index = parsepyipopt.indexedexpression
 
 N = 10  # timesteps
 M = 3  # windows
 
-problem = parsepyipopt.problem()
+problem = pp.problem()
 
 p0 = 0.80*np.ones(M)
 Qset = 1000.*np.ones(N)
@@ -17,59 +16,51 @@ Qclosed = 0.2*Qopen
 
 
 # add variables
+p = np.empty((N,M), dtype=object)
+move = np.empty((N), dtype=object)
+Q = np.empty((N), dtype=object)
+Qslack_min = np.empty((N), dtype=object)
+Qslack_max = np.empty((N), dtype=object)
 for i in range(N):
 	for j in range(M):
 
-		p = problem.add_variable(index('p[i,j]',['i','j'],[i,j]))
-		p.set_lowerbound(0.)
-		p.set_upperbound(1.)
+		p[i,j] = problem.add_variable(pp.Expression('p[i,j]',['i','j'],[[i],[j]]).parse(),lowerbound=0.0,upperbound=1.0)
 
-	move = problem.add_variable(index('move[i]',['i'],[i]))
-	Q = problem.add_variable(index('Q[i]',['i'],[i]))
-	Qslack_min = problem.add_variable(index('Qslack_min[i]',['i'],[i]))
-	Qslack_max = problem.add_variable(index('Qslack_max[i]',['i'],[i]))
-
-	move.set_lowerbound(0.)
-	move.set_upperbound(1.)
-	Q.set_lowerbound(0.)
-	Q.set_upperbound(sum(Qopen[i,:]))
-	Qslack_min.set_lowerbound(0.)
-	Qslack_min.set_upperbound(20.e3)
-	Qslack_max.set_lowerbound(0.)
-	Qslack_max.set_upperbound(20.e3)
-
+	move[i] = problem.add_variable(pp.Expression('move[i]',['i'],[[i]]).parse(),lowerbound=0.0,upperbound=1.0)
+	Q[i] = problem.add_variable(pp.Expression('Q[i]',['i'],[[i]]),lowerbound=0.0,upperbound=sum(Qopen[i,:]))
+	Qslack_min[i] = problem.add_variable(pp.Expression('Qslack_min[i]',['i'],[[i]]).parse(),lowerbound=0.0,upperbound=20.e3)
+	Qslack_max[i] = problem.add_variable(pp.Expression('Qslack_max[i]',['i'],[[i]]).parse(),lowerbound=0.0,upperbound=20.e3)
 
 # add parameters
 problem.add_parameter('dQ',dQ)
 problem.add_parameter('c_move',5000.)
 for j in range(M):
-	problem.add_parameter(index('p0[j]',['j'],[j]),p0[j])
+	problem.add_parameter(pp.Expression('p0[j]',['j'],[[j]].parse()),p0[j])
 
 for i in range(N):
 
-	problem.add_parameter(index('Qset[i]',['i'],[i]),Qset[i])
+	problem.add_parameter(pp.Expression('Qset[i]',['i'],[[i]].parse()),Qset[i])
 	
 	for j in range(M):
 
-		problem.add_parameter(index('Qopen[i,j]',['i','j'],[i,j]),Qopen[i,j])
-		problem.add_parameter(index('Qclosed[i,j]',['i','j'],[i,j]),Qclosed[i,j])	
+		problem.add_parameter(pp.Expression('Qopen[i,j]',['i','j'],[[i],[j]]).parse(),Qopen[i,j])
+		problem.add_parameter(pp.Expression('Qclosed[i,j]',['i','j'],[[i],[j]]).parse(),Qclosed[i,j])	
 
 
 # add constraints
 for i in range(N):
-	problem.add_constraint(index('Q[i]-('+ '+'.join(['(1-p[i,{0}])*Qopen[i,{0}]+p[i,{0}]*Qclosed[i,{0}]'.format(j) for j in range(M)])+')',['i'],[i]),0.,0.)
-	problem.add_constraint(index('Qslack_min[i]-Qset[i]+dQ+Q[i]',['i'],[i]),0.,20.e2)
-	problem.add_constraint(index('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[i]),0.,20.e3)
+	problem.add_constraint(pp.Expression('Q[i]-sum((1-p[i,j])*Qopen[i,j]+p[i,j]*Qclosed[i,j],j)',['i','j'],[[i],range(M)]),0.,0.)
+	problem.add_constraint(pp.Expression('Qslack_min[i]-Qset[i]+dQ+Q[i]',['i'],[[i]]),0.,20.e2)
+	problem.add_constraint(pp.Expression('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[[i]]),0.,20.e3)
 
 	for j in range(M):
 		if i==0:
-			problem.add_constraint(index('move[i]-(p[i,j]-p0[j])**2',['i','j'],[i,j]),0.,1.)
+			problem.add_constraint(pp.Expression('move[i]-(1-exp(-100*(p[i,j]-p0[j])**2))',['i','j'],[[i],[j]]),0.,1.)
 		else:
-			problem.add_constraint(index('move[i]-(p[i,j]-p[i-1,j])**2',['i','j'],[i,j]),0.,1.)
+			problem.add_constraint(pp.Expression('move[i]-(1-exp(-100*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]),0.,1.)
 
 # set objective
-problem.set_objective('+'.join([ index('Qslack_min[i]',['i'],[i]) for i in range(N)]) +'+'+ '+'.join([ index('Qslack_max[i]',['i'],[i]) for i in range(N)]) +'+'+ '+'.join([ index('c_move*move[i]',['i'],[i]) for i in range(N)])  )
-
+problem.set_objective(pp.Expression('sum(Qslack_min[i],i) + sum(Qslack_max[i],i) + c_move*sum(move[i],i)',['i'],[range(N)])) 
 
 
 x0 = problem.get_variable_lowerbounds()
@@ -80,29 +71,21 @@ print( problem.constraint(x0) )
 print( problem.jacobian(x0,True) )
 print( problem.jacobian(x0,False) )
 
-
 problem.solve(x0)
 
-print(' ')
-for i in range(N):
-	print( problem.get_variable(index('p[i,0]',['i'],[i])).sol )
 
 print(' ')
-for i in range(N):
-	print( problem.get_variable(index('p[i,1]',['i'],[i])).sol )
+for j in range(M):
+	print( ['{:.2f}'.format(p[i,j].sol) for i in range(N)] )
 
 print(' ')
 print('Q')
-for i in range(N):
-	print( problem.get_variable(index('Q[i]',['i'],[i])).sol )
+print( ['{:.0f}'.format(Q[i].sol) for i in range(N)] )
 
 print(' ')
-print('Qslack_min')
-for i in range(N):
-	print( problem.get_variable(index('Qslack_min[i]',['i'],[i])).sol )
+print('Q')
+print( ['{:.0f}'.format(Qslack_min[i].sol) for i in range(N)] )
 
 print(' ')
-print('Qslack_max')
-for i in range(N):
-	print( problem.get_variable(index('Qslack_max[i]',['i'],[i])).sol )
-
+print('Q')
+print( ['{:.0f}'.format(Qslack_max[i].sol) for i in range(N)] )

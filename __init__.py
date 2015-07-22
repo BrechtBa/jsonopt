@@ -2,7 +2,7 @@
 
 import numpy as np
 import sympy
-#import pyipopt
+import pyipopt
 import re
 
 class Problem:
@@ -131,10 +131,9 @@ class Variable:
  
 	def set_lowerbound(self,value):
 		self.lowerbound = value
-
+		
 	def set_upperbound(self,value):
 		self.upperbound = value
-
 
 # Functions
 class Function:
