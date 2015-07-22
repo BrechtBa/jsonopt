@@ -2,7 +2,7 @@ import numpy as np
 import parsepyipopt as pp
 
 
-N = 12  # timesteps
+N = 8  # timesteps
 M = 5  # windows
 
 problem = pp.Problem()
