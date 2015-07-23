@@ -1,20 +1,20 @@
 #!/usr/bin/python3
 
 
-#	This file is part of parsepyipopt.
+#	This file is part of parsenlp.
 #
-#    parsepyipopt is free software: you can redistribute it and/or modify
+#    parsenlp is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    parsepyipopt is distributed in the hope that it will be useful,
+#    parsenlp is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with parsepyipopt.  If not, see <http://www.gnu.org/licenses/>.
+#    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
@@ -29,7 +29,11 @@ class Problem:
 		self.objective = None
 		self.constraints = []
 
-	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=0):
+	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
+		
+		if value==None:
+			value = 0.5*lowerbound + 0.5*upperbound
+
 		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
 		evalvar = 'symvar[{0}]'.format(len(self.variables))
 		self.variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound,value=value) )
@@ -55,7 +59,6 @@ class Problem:
 	def get_constraint(self,name):
 		ind = [i.name for i in self.constraints].index(name)
 		return self.constraints[ind]
-
 
 	# callbacks
 	def gradient(self,symvar):
@@ -121,20 +124,25 @@ class Problem:
 		
 		return np.array(values)
 
+	def get_values(self):
+		return np.array([v.value for v in self.variables])
 
-	# problem solution
-	def solve(self,x0):
+	def set_values(self,x):
+		for var,val in zip(self.variables,x):
+			var.value = val
+
+
+	# solve the problem using pyipopt
+	def solve(self,x0=None):
 
 		nlp = pyipopt.create(len(self.variables), self.get_variable_lowerbounds(), self.get_variable_upperbounds(), len(self.constraints), self.get_constraint_lowerbounds(), self.get_constraint_upperbounds(), len(self.jacobian(x0,False)), 0, self.objective, self.gradient, self.constraint, self.jacobian)
+		
+		if x0 == None:
+			x0 = self.get_values()
+
 		x, zl, zu, constraint_multipliers, obj, status = nlp.solve(x0)
-
-		for i,s in zip(self.variables,x):
-			i.value = s
-
+		self.set_values(x)
 		nlp.close()
-
-	def get_solution(self):
-		return np.array([v.value for v in self.variables])
 
 
 # Variables
@@ -156,13 +164,20 @@ class Variable:
 		
 # Functions
 class Function:
-	def __init__(self,expression,variables,parameters):
+	def __init__(self,expression,variables,parameters,indexvalues=[]):
+		"""
+		defines a function to be used in the optimization problem
 
+		Arguments:
+		expression:   parsenlp.Expression
+		variables:    list of parsenlp.Variable, optimization problem variables
+		parameters:   list of parsenlp.Parameter, optimization problem parameters
+		"""
 		self.variables = variables
 		self.parameters = parameters
 
 		self.expression = expression
-		self.parsedexpression = self.expression.parse()
+		self.parsedexpression = self.expression.parse(indexvalues)
 		self.sympyexpression = self.parsedexpression
 		self.evaluationstring = self.parsedexpression
 
@@ -170,7 +185,7 @@ class Function:
 		self.gradientsympyexpression = []
 		self.gradientevaluationstring = ''
 
-		specialfunctions = {'log(':'np.log(','exp(':'np.exp('}
+		specialfunctions = {'log(':'np.log(','exp(':'np.exp(','sin(':'np.sin(','cos(':'np.cos(','tan(':'np.tan('}
 
 		# parse the function
 		for p in self.parameters:
@@ -188,7 +203,7 @@ class Function:
 			try:
 				self.gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
 			except:
-				raise Exception('Error while diferentiating constraint: '+self.parsedexpression)
+				raise Exception('Error while differentiating constraint: '+self.parsedexpression)
 
 		for g in self.gradientsympyexpression:
 			temp_gradientexpression = g
@@ -224,8 +239,8 @@ class Function:
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,expression,variables,parameters,lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,expression,variables,parameters)
+	def __init__(self,expression,variables,parameters,indexvalues=[],lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,expression,variables,parameters,indexvalues=indexvalues)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name

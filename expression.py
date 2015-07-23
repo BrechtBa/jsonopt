@@ -1,21 +1,20 @@
 #!/usr/bin/python3
 
 
-#	This file is part of parsepyipopt.
+#	This file is part of parsenlp.
 #
-#    parsepyipopt is free software: you can redistribute it and/or modify
+#    parsenlp is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    parsepyipopt is distributed in the hope that it will be useful,
+#    parsenlp is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with parsepyipopt.  If not, see <http://www.gnu.org/licenses/>.
-
+#    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
 
@@ -24,7 +23,7 @@ class Expression:
 	"""
 	A class to parse mathematical expressions containing indexes and sums as commonly encountered in optimization problem definitions
 	"""
-	def __init__(self,string,indexnames,indexvalues):
+	def __init__(self,string,indexnames,indexvalues=[]):
 		"""
 		Arguments:
 		string: a string containing the expression
@@ -39,10 +38,15 @@ class Expression:
 		self.indexnames = indexnames
 		self.indexvalues = indexvalues
 		
-	def parse(self):
+	def parse(self,indexvalues=[]):
 		"""
 		return an expanded expression string
 		"""
+		if indexvalues!=[]:
+			self.indexvalues = indexvalues
+		if self.indexvalues == [] and self.indexnames != []:
+			raise Exception('When indexes are present values must be supplied for parsing')
+
 		string_expanded = self.string
 
 		# parse sums
