@@ -83,9 +83,9 @@ class Expression:
 
 		for p in pre:
 			for d in delta:
-				string = re.sub(re.escape(p)+index+'{:+.0f}'.format(d),p+'{:.0f}'.format(value+d),string)
+				string = re.sub(re.escape(p+index+'{:+.0f}'.format(d)),p+'{:.0f}'.format(value+d),string)
 
-			string = re.sub(re.escape(p)+index,p+'{:.0f}'.format(value),string)
+			string = re.sub(re.escape(p+index),p+'{:.0f}'.format(value),string)
 
 		return string
 

@@ -29,10 +29,10 @@ class Problem:
 		self.objective = None
 		self.constraints = []
 
-	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20):
+	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=0):
 		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
 		evalvar = 'symvar[{0}]'.format(len(self.variables))
-		self.variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound) )
+		self.variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound,value=value) )
 		return self.variables[-1]
 
 	def get_variable(self,name):
@@ -152,7 +152,8 @@ class Variable:
 		
 	def set_upperbound(self,value):
 		self.upperbound = value
-
+		
+		
 # Functions
 class Function:
 	def __init__(self,expression,variables,parameters):
