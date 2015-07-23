@@ -25,6 +25,7 @@ import pyipopt
 class Problem:
 	def __init__(self):
 		self.variables = []
+		self.parameters = []
 		self.objective = None
 		self.constraints = []
 
@@ -39,10 +40,10 @@ class Problem:
 		return self.variables[ind]
 
 	def add_parameter(self,name,value):
-		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
-		evalvar = 'symvar[{0}]'.format(len(self.variables))
-		self.variables.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value) )
-		return self.variables[-1]
+		symvar = sympy.Symbol( 'sympar{0}'.format(len(self.parameters)) )
+		evalvar = 'sympar[{0}]'.format(len(self.parameters))
+		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value) )
+		return self.parameters[-1]
 
 	def set_objective(self,expressionstring):
 		self.objective = Function(expressionstring,self.variables)
@@ -128,12 +129,12 @@ class Problem:
 		x, zl, zu, constraint_multipliers, obj, status = nlp.solve(x0)
 
 		for i,s in zip(self.variables,x):
-			i.sol = s
+			i.value = s
 
 		nlp.close()
 
 	def get_solution(self):
-		return np.array([v.sol for v in self.variables])
+		return np.array([v.value for v in self.variables])
 
 
 # Variables
@@ -144,7 +145,7 @@ class Variable:
 		self.upperbound = upperbound
 		self._symvar = symvar
 		self._evalvar = evalvar
-		self.sol = None
+		self.value = None
  
 	def set_lowerbound(self,value):
 		self.lowerbound = value
@@ -154,9 +155,10 @@ class Variable:
 
 # Functions
 class Function:
-	def __init__(self,expression,variables):
+	def __init__(self,expression,variables,parameters):
 
 		self.variables = variables
+		self.parameters = parameters
 
 		self.expression = expression
 		self.parsedexpression = self.expression.parse()
@@ -170,11 +172,15 @@ class Function:
 		specialfunctions = {'log(':'np.log(','exp(':'np.exp('}
 
 		# parse the function
+		for p in self.parameters:
+			self.sympyexpression = self.sympyexpression.replace(p.name,str(p._symvar))
+			self.evaluationstring = self.evaluationstring.replace(p.name,p._evalvar )
+		
 		for v in self.variables:
 			self.sympyexpression = self.sympyexpression.replace(v.name,str(v._symvar))
 			self.evaluationstring = self.evaluationstring.replace(v.name,v._evalvar )
 		
-
+		
 		# create gradients
 		gradientevaluationstring = []
 		for v in self.variables:
@@ -191,6 +197,10 @@ class Function:
 				temp_gradientexpression = temp_gradientexpression.replace(str(v._symvar),v.name)
 				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(v._symvar),v._evalvar)
 
+			for p in self.parameters:
+				temp_gradientexpression = temp_gradientexpression.replace(str(p._symvar),p.name)
+				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(p._symvar),p._evalvar)
+				
 			self.gradientexpression.append( temp_gradientexpression )
 			gradientevaluationstring.append( temp_gradientevaluationstring )
 
@@ -202,10 +212,12 @@ class Function:
 			self.gradientevaluationstring = self.gradientevaluationstring.replace(f,specialfunctions[f])
 			
 	def __call__(self,symvar):
+		sympar = np.array([p.value for p in self.parameters])
 		return eval(self.evaluationstring)
 
 
 	def gradient(self,symvar):
+		sympar = np.array([p.value for p in self.parameters])
 		return eval(self.gradientevaluationstring)
 
 
