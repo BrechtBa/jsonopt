@@ -73,24 +73,24 @@ for i in range(N):
 x0 = problem.get_variable_lowerbounds()
 
 problem.solve(x0)
-
+x = problem.get_solution()
 
 print(' ')
 for j in range(M):
-	print( ['{:.2f}'.format(p[i,j].sol) for i in range(N)] )
+	print( ['{:.2f}'.format(p[i,j].value) for i in range(N)] )
 
 print(' ')
 print('move')
-print( ['{:.2f}'.format(move[i].sol) for i in range(N)] )
+print( ['{:.2f}'.format(move[i].value) for i in range(N)] )
 
 print(' ')
 print('Q')
-print( ['{:.0f}'.format(Q[i].sol) for i in range(N)] )
+print( ['{:.0f}'.format(Q[i].value) for i in range(N)] )
 
 print(' ')
 print('Qslack_min')
-print( ['{:.0f}'.format(Qslack_min[i].sol) for i in range(N)] )
+print( ['{:.0f}'.format(Qslack_min[i].value) for i in range(N)] )
 
 print(' ')
 print('Qslack_max')
-print( ['{:.0f}'.format(Qslack_max[i].sol) for i in range(N)] )
+print( ['{:.0f}'.format(Qslack_max[i].value) for i in range(N)] )

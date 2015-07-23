@@ -42,14 +42,14 @@ class Problem:
 	def add_parameter(self,name,value):
 		symvar = sympy.Symbol( 'sympar{0}'.format(len(self.parameters)) )
 		evalvar = 'sympar[{0}]'.format(len(self.parameters))
-		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value) )
+		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value,value=value) )
 		return self.parameters[-1]
 
 	def set_objective(self,expressionstring):
-		self.objective = Function(expressionstring,self.variables)
+		self.objective = Function(expressionstring,self.variables,self.parameters)
 
 	def add_constraint(self,expressionstring,lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(expressionstring,self.variables,lowerbound,upperbound,name) )
+		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,lowerbound,upperbound,name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -139,13 +139,13 @@ class Problem:
 
 # Variables
 class Variable:
-	def __init__(self,name,symvar,evalvar,lowerbound=-1.0e20,upperbound=1.0e20):
+	def __init__(self,name,symvar,evalvar,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
 		self.name = name
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self._symvar = symvar
 		self._evalvar = evalvar
-		self.value = None
+		self.value = value
  
 	def set_lowerbound(self,value):
 		self.lowerbound = value
@@ -197,7 +197,7 @@ class Function:
 				temp_gradientexpression = temp_gradientexpression.replace(str(v._symvar),v.name)
 				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(v._symvar),v._evalvar)
 
-			for p in self.parameters:
+			for p in reversed(self.parameters):
 				temp_gradientexpression = temp_gradientexpression.replace(str(p._symvar),p.name)
 				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(p._symvar),p._evalvar)
 				
@@ -223,8 +223,8 @@ class Function:
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,expression,variables,lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,expression,variables)
+	def __init__(self,expression,variables,parameters,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,expression,variables,parameters)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name
