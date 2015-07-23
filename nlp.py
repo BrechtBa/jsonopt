@@ -52,8 +52,8 @@ class Problem:
 	def set_objective(self,expressionstring):
 		self.objective = Function(expressionstring,self.variables,self.parameters)
 
-	def add_constraint(self,expressionstring,lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,lowerbound,upperbound,name) )
+	def add_constraint(self,expressionstring,indexvalues=[],lowerbound=0.0,upperbound=0.0,name=''):
+		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,indexvalues=indexvalues,lowerbound=lowerbound,upperbound=upperbound,name=name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -87,6 +87,7 @@ class Problem:
 		else:
 			val = []
 			for i,c in enumerate(self.constraints):
+
 				grad = c.gradient(symvar)
 				for j,g in enumerate(c.gradientexpression):
 					if g != '0':
@@ -134,11 +135,22 @@ class Problem:
 
 	# solve the problem using pyipopt
 	def solve(self,x0=None):
-
-		nlp = pyipopt.create(len(self.variables), self.get_variable_lowerbounds(), self.get_variable_upperbounds(), len(self.constraints), self.get_constraint_lowerbounds(), self.get_constraint_upperbounds(), len(self.jacobian(x0,False)), 0, self.objective, self.gradient, self.constraint, self.jacobian)
 		
 		if x0 == None:
 			x0 = self.get_values()
+		
+		nlp = pyipopt.create(   len(self.variables),
+								self.get_variable_lowerbounds(),
+								self.get_variable_upperbounds(),
+								len(self.constraints),
+								self.get_constraint_lowerbounds(),
+								self.get_constraint_upperbounds(),
+								len(self.jacobian(x0,False)),
+								0,
+								self.objective,
+								self.gradient,
+								self.constraint,
+								self.jacobian)
 
 		x, zl, zu, constraint_multipliers, obj, status = nlp.solve(x0)
 		self.set_values(x)

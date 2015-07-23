@@ -42,7 +42,7 @@ class Expression:
 		"""
 		return an expanded expression string
 		"""
-		if indexvalues!=[]:
+		if indexvalues != []:
 			self.indexvalues = indexvalues
 		if self.indexvalues == [] and self.indexnames != []:
 			raise Exception('When indexes are present values must be supplied for parsing')
