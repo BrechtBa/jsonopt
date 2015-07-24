@@ -1,8 +1,36 @@
+#!/usr/bin/python3
+
+
+#	This file is part of parsenlp.
+#
+#    parsenlp is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    parsenlp is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# shading problem:
+#
+# This is an optimization problem I have been working on just as a test
+# The goal of the optimization is to control the shades of a building in a desirable way
+# The shades are used to track a setpoint of solar irradiation through the building windows
+# The setpoint and maximum irradiation can vary over time and needs to be tracked within a certain boundary
+# The second objective is maximizing the view through the windows
+# To limit the number of movements a move cost is added which rises quickly to one is any of the shades move.
+# As it is a multi objective problem a trade-off will be made between setpoint tracking, view maximization and movement minimization
+
 import numpy as np
 import parsenlp
 
-
-N = 8  # timesteps
+N = 8  # time steps
 M = 4  # windows
 
 problem = parsenlp.Problem()
@@ -61,15 +89,21 @@ print('adding constraints')
 for i in range(N):
 	problem.add_constraint(parsenlp.Expression('Q[i]-sum((1-p[i,j])*Qopen[i,j]+p[i,j]*Qclosed[i,j],j)',['i','j'],[[i],range(M)]).parse(),lowerbound=0.,upperbound=0.)
 	problem.add_constraint(parsenlp.Expression('Qslack_min[i]-Qset[i]+dQ+Q[i]',['i'],[[i]]).parse(),lowerbound=0.,upperbound=20.e2)
-	problem.add_constraint(parsenlp.Expression('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[[i]]).parse(),lowerbound=0.,upperbound=20.e3)
+	problem.add_constraint(parsenlp.Expression('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[[i]]).parse(),lowerbound=0.,upperbound=20.e3 )
 
 	for j in range(M):
 		if i==0:
 			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p0[j])**2))',['i','j'],[[i],[j]]).parse(),lowerbound=0.,upperbound=10.)
 		else:
-			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]).parse(),lowerbound=0.,upperbound=10.)
+			# custom gradient definition
+			gradientdict = {}
+			gradientdict[parsenlp.Expression('move[i]',['i'],[[i]]).parse()] = '1'
+			gradientdict[parsenlp.Expression('p[i,j]',['i','j'],[[i],[j]]).parse()]   = parsenlp.Expression('(-400*p[i,j] + 400*p[i-1,j])*exp(-200*(p[i,j] - p[i-1,j])**2)',['i','j'],[[i],[j]]).parse()
+			gradientdict[parsenlp.Expression('p[i-1,j]',['i','j'],[[i],[j]]).parse()] = parsenlp.Expression('( 400*p[i,j] - 400*p[i-1,j])*exp(-200*(p[i,j] - p[i-1,j])**2)',['i','j'],[[i],[j]]).parse()
+			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]).parse(),gradientdict=gradientdict,lowerbound=0.,upperbound=10.)
 
 
+print('solving')
 problem.solve()
 x = problem.get_values()
 

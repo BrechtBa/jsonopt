@@ -49,11 +49,11 @@ class Problem:
 		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value,value=value) )
 		return self.parameters[-1]
 
-	def set_objective(self,string,gradientstring=None):
-		self.objective = Function(string,self.variables,self.parameters)
+	def set_objective(self,string,gradientdict=None):
+		self.objective = Function(string,self.variables,self.parameters,gradientdict=gradientdict)
 
-	def add_constraint(self,string,gradientstring=None,lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(string,self.variables,self.parameters,lowerbound=lowerbound,upperbound=upperbound,name=name) )
+	def add_constraint(self,string,gradientdict=None,lowerbound=0.0,upperbound=0.0,name=''):
+		self.constraints.append( Constraint(string,self.variables,self.parameters,gradientdict=gradientdict,lowerbound=lowerbound,upperbound=upperbound,name=name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -179,7 +179,7 @@ class Variable:
 		
 # Functions
 class Function:
-	def __init__(self,string,variables,parameters,gradientstring=None):
+	def __init__(self,string,variables,parameters,gradientdict=None):
 		"""
 		defines a function to be used in the optimization problem
 
@@ -187,75 +187,129 @@ class Function:
 		string:          string to represent the expression
 		variables:       list of parsenlp.Variable, optimization problem variables
 		parameters:      list of parsenlp.Parameter, optimization problem parameters
-		gradientstring:  optional, list of strings which represent the derivatives to all variables
+		gradientdict:  optional, dictionary of strings which represent the nonzero derivatives with the variable name as key
 		"""
 		self.variables = variables
 		self.parameters = parameters
 
-		self.expression = expressionstring
-		self.sympyexpression = self.expression
-		self.evaluationstring = self.expression
+		
+		self.expression = string
+		self.sympyexpression = self.name2sympy(self.expression)
+		self.evaluationstring = self.name2eval(self.expression)
 
-		self.gradientexpression = []
-		self.gradientsympyexpression = []
-		self.gradientevaluationstring = ''
+		# calculate gradient
+		if gradientdict==None:
+			self.gradientsympyexpression = self.calculate_gradient()
+			self.gradientexpression = []
 
+			for g in self.gradientsympyexpression:
+				self.gradientexpression.append( self.sympy2name(g) )
+
+		else:
+			self.gradientexpression = []
+			for v in self.variables:
+				if v.name in gradientdict:
+					self.gradientexpression.append(gradientdict[v.name])
+				else:
+					self.gradientexpression.append('0')
+			
+		# calculate the evaluation string		
+		self.gradientevaluationstring = []
+		for g in self.gradientexpression:
+			self.gradientevaluationstring.append( self.name2eval( g ) )
+				
+		self.gradientevaluationstring = 'np.array([' + ','.join(self.gradientevaluationstring) + '],dtype=np.float)'
+		
+	def gradient2dictionary(self):
+		"""
+		returns a dictionary containing the non zero derivative with the variable name as key 
+		"""
+		dictionary = {}
+		for v,g in zip(self.variables,self.gradientexpression):
+			if g != '0':
+				dictionary[v.name] = g
+		return dictionary
+		
+	def name2sympy(self,string):
+		"""
+		replace variable and parameter names with sympy variables
+		"""
+		
+		sympyexpression = string
+		for p in self.parameters:
+			sympyexpression = sympyexpression.replace(p.name,str(p._symvar))
+		for v in self.variables:
+			sympyexpression = sympyexpression.replace(v.name,str(v._symvar))
+			
+		return sympyexpression
+	
+	def name2eval(self,string):
+		"""
+		replace variable and parameter names with evaluation variables
+		"""
+		
 		specialfunctions = {'log(':'np.log(','exp(':'np.exp(','sin(':'np.sin(','cos(':'np.cos(','tan(':'np.tan('}
 
-		# parse the function
+		evaluationstring = string
 		for p in self.parameters:
-			self.sympyexpression = self.sympyexpression.replace(p.name,str(p._symvar))
-			self.evaluationstring = self.evaluationstring.replace(p.name,p._evalvar )
-		
+			evaluationstring = evaluationstring.replace(p.name,p._evalvar )
 		for v in self.variables:
-			self.sympyexpression = self.sympyexpression.replace(v.name,str(v._symvar))
-			self.evaluationstring = self.evaluationstring.replace(v.name,v._evalvar )
+			evaluationstring = evaluationstring.replace(v.name,v._evalvar)
+		
+		for f in specialfunctions:
+			evaluationstring = evaluationstring.replace(f,specialfunctions[f])
+			
+		return evaluationstring
+	
+	def sympy2name(self,sympyexpression):
+		"""
+		replace sympy variables and parameters with variable names
+		"""
+		
+		expression = sympyexpression
+		# reversed so x34 get replaced before x3
+		for v in reversed(self.variables):
+			expression = expression.replace(str(v._symvar),v.name)
+		for p in reversed(self.parameters):
+				expression = expression.replace(str(p._symvar),p.name)
+			
+		return expression
 		
 		
-		# create gradients
-		gradientevaluationstring = []
+	def calculate_gradient(self):
+		"""
+		returns a list of strings which contain the derivatives to all variables with sympy names
+		"""
+		
+		gradientsympyexpression = []
 		for v in self.variables:
 			try:
-				self.gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
+				gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
 			except:
 				raise Exception('Error while differentiating constraint: '+self.expression)
-
-		for g in self.gradientsympyexpression:
-			temp_gradientexpression = g
-			temp_gradientevaluationstring = g
-			for v in reversed(self.variables):
-				# reversed so x34 get replaced before x3
-				temp_gradientexpression = temp_gradientexpression.replace(str(v._symvar),v.name)
-				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(v._symvar),v._evalvar)
-
-			for p in reversed(self.parameters):
-				temp_gradientexpression = temp_gradientexpression.replace(str(p._symvar),p.name)
-				temp_gradientevaluationstring = temp_gradientevaluationstring.replace(str(p._symvar),p._evalvar)
-				
-			self.gradientexpression.append( temp_gradientexpression )
-			gradientevaluationstring.append( temp_gradientevaluationstring )
-
-		self.gradientevaluationstring = 'np.array([' + ','.join(gradientevaluationstring) + '],dtype=np.float)'
-
-		# replace special functions with their numpy equivalent
-		for f in specialfunctions:
-			self.evaluationstring = self.evaluationstring.replace(f,specialfunctions[f])
-			self.gradientevaluationstring = self.gradientevaluationstring.replace(f,specialfunctions[f])
-			
+		return gradientsympyexpression
+		
+	
 	def __call__(self,symvar):
+		"""
+		return the function result
+		"""
 		sympar = np.array([p.value for p in self.parameters])
 		return eval(self.evaluationstring)
 
 
 	def gradient(self,symvar):
+		"""
+		return the gradient result
+		"""
 		sympar = np.array([p.value for p in self.parameters])
 		return eval(self.gradientevaluationstring)
 
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,string,variables,parameters,gradientstring=None,lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,string,variables,parameters,gradientstring=gradientstring)
+	def __init__(self,string,variables,parameters,gradientdict=None,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,string,variables,parameters,gradientdict=gradientdict)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name
