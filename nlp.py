@@ -49,11 +49,11 @@ class Problem:
 		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value,value=value) )
 		return self.parameters[-1]
 
-	def set_objective(self,expressionstring):
-		self.objective = Function(expressionstring,self.variables,self.parameters)
+	def set_objective(self,string,gradientstring=None):
+		self.objective = Function(string,self.variables,self.parameters)
 
-	def add_constraint(self,expressionstring,lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,lowerbound=lowerbound,upperbound=upperbound,name=name) )
+	def add_constraint(self,string,gradientstring=None,lowerbound=0.0,upperbound=0.0,name=''):
+		self.constraints.append( Constraint(string,self.variables,self.parameters,lowerbound=lowerbound,upperbound=upperbound,name=name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -179,14 +179,15 @@ class Variable:
 		
 # Functions
 class Function:
-	def __init__(self,expressionstring,variables,parameters):
+	def __init__(self,string,variables,parameters,gradientstring=None):
 		"""
 		defines a function to be used in the optimization problem
 
 		Arguments:
-		expression:   parsenlp.Expression
-		variables:    list of parsenlp.Variable, optimization problem variables
-		parameters:   list of parsenlp.Parameter, optimization problem parameters
+		string:          string to represent the expression
+		variables:       list of parsenlp.Variable, optimization problem variables
+		parameters:      list of parsenlp.Parameter, optimization problem parameters
+		gradientstring:  optional, list of strings which represent the derivatives to all variables
 		"""
 		self.variables = variables
 		self.parameters = parameters
@@ -253,8 +254,8 @@ class Function:
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,expression,variables,parameters,lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,expression,variables,parameters)
+	def __init__(self,string,variables,parameters,gradientstring=None,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,string,variables,parameters,gradientstring=gradientstring)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name
