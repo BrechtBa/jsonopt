@@ -34,6 +34,7 @@ N = 8  # time steps
 M = 4  # windows
 
 problem = parsenlp.Problem()
+help(problem)
 
 p0 = 0.60*np.ones(M)
 Qset = 1000.*np.ones(N)
@@ -102,7 +103,6 @@ for i in range(N):
 			gradientdict[parsenlp.Expression('p[i-1,j]',['i','j'],[[i],[j]]).parse()] = parsenlp.Expression('( 400*p[i,j] - 400*p[i-1,j])*exp(-200*(p[i,j] - p[i-1,j])**2)',['i','j'],[[i],[j]]).parse()
 			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]).parse(),gradientdict=gradientdict,lowerbound=0.,upperbound=10.)
 
-
 print('solving')
 problem.solve()
 x = problem.get_values()
@@ -126,3 +126,6 @@ print( ['{:.0f}'.format(Qslack_min[i].value) for i in range(N)] )
 print(' ')
 print('Qslack_max')
 print( ['{:.0f}'.format(Qslack_max[i].value) for i in range(N)] )
+
+
+
