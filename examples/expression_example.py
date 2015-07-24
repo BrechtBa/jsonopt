@@ -51,9 +51,9 @@ print(expression.parse())
 
 print(' ')
 print('parse simple sum:')
-expression = parsenlp.Expression('p[i,j] + 5*q[i] + 10*sum(r[j,a],a)',['i','j','a'],[[0],[1],[0,1,2]])
+expression = parsenlp.Expression('p[i,j] + 5*q[i] + 10*sum(r[j,a],a)',['i','j','a'])
 print(expression.string)
-print(expression.parse())
+print(expression.parse([[0],[1],[0,1,2]]))
 
 print(' ')
 print('parse nested sum:')

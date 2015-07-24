@@ -52,8 +52,8 @@ class Problem:
 	def set_objective(self,expressionstring):
 		self.objective = Function(expressionstring,self.variables,self.parameters)
 
-	def add_constraint(self,expressionstring,indexvalues=[],lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,indexvalues=indexvalues,lowerbound=lowerbound,upperbound=upperbound,name=name) )
+	def add_constraint(self,expressionstring,lowerbound=0.0,upperbound=0.0,name=''):
+		self.constraints.append( Constraint(expressionstring,self.variables,self.parameters,lowerbound=lowerbound,upperbound=upperbound,name=name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -165,8 +165,11 @@ class Variable:
 		self.upperbound = upperbound
 		self._symvar = symvar
 		self._evalvar = evalvar
-		self.value = value
- 
+		if value==None:	
+			self.value = 0.5*self.lowerbound + 0.5*self.upperbound
+		else:
+			self.value = value
+
 	def set_lowerbound(self,value):
 		self.lowerbound = value
 		
@@ -176,7 +179,7 @@ class Variable:
 		
 # Functions
 class Function:
-	def __init__(self,expression,variables,parameters,indexvalues=[]):
+	def __init__(self,expressionstring,variables,parameters):
 		"""
 		defines a function to be used in the optimization problem
 
@@ -188,10 +191,9 @@ class Function:
 		self.variables = variables
 		self.parameters = parameters
 
-		self.expression = expression
-		self.parsedexpression = self.expression.parse(indexvalues)
-		self.sympyexpression = self.parsedexpression
-		self.evaluationstring = self.parsedexpression
+		self.expression = expressionstring
+		self.sympyexpression = self.expression
+		self.evaluationstring = self.expression
 
 		self.gradientexpression = []
 		self.gradientsympyexpression = []
@@ -215,7 +217,7 @@ class Function:
 			try:
 				self.gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
 			except:
-				raise Exception('Error while differentiating constraint: '+self.parsedexpression)
+				raise Exception('Error while differentiating constraint: '+self.expression)
 
 		for g in self.gradientsympyexpression:
 			temp_gradientexpression = g
@@ -251,8 +253,8 @@ class Function:
 
 # Constraint
 class Constraint(Function):
-	def __init__(self,expression,variables,parameters,indexvalues=[],lowerbound=0.0,upperbound=0.0,name=''):
-		Function.__init__(self,expression,variables,parameters,indexvalues=indexvalues)
+	def __init__(self,expression,variables,parameters,lowerbound=0.0,upperbound=0.0,name=''):
+		Function.__init__(self,expression,variables,parameters)
 		self.lowerbound = lowerbound
 		self.upperbound = upperbound
 		self.name = name

@@ -53,21 +53,21 @@ for i in range(N):
 
 # set objective
 print('setting objective')
-problem.set_objective(parsenlp.Expression('sum(Qslack_min[i],i) + sum(Qslack_max[i],i) + c_move*sum(move[i],i) + sum(sum(c_view*p[i,j],i),j)',['i','j'],[range(N),range(M)])) 
+problem.set_objective(parsenlp.Expression('sum(Qslack_min[i],i) + sum(Qslack_max[i],i) + c_move*sum(move[i],i) + sum(sum(c_view*p[i,j],i),j)',['i','j'],[range(N),range(M)]).parse()) 
 
 
 # add constraints
 print('adding constraints')
 for i in range(N):
-	problem.add_constraint(parsenlp.Expression('Q[i]-sum((1-p[i,j])*Qopen[i,j]+p[i,j]*Qclosed[i,j],j)',['i','j'],[[i],range(M)]),lowerbound=0.,upperbound=0.)
-	problem.add_constraint(parsenlp.Expression('Qslack_min[i]-Qset[i]+dQ+Q[i]',['i'],[[i]]),lowerbound=0.,upperbound=20.e2)
-	problem.add_constraint(parsenlp.Expression('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[[i]]),lowerbound=0.,upperbound=20.e3)
+	problem.add_constraint(parsenlp.Expression('Q[i]-sum((1-p[i,j])*Qopen[i,j]+p[i,j]*Qclosed[i,j],j)',['i','j'],[[i],range(M)]).parse(),lowerbound=0.,upperbound=0.)
+	problem.add_constraint(parsenlp.Expression('Qslack_min[i]-Qset[i]+dQ+Q[i]',['i'],[[i]]).parse(),lowerbound=0.,upperbound=20.e2)
+	problem.add_constraint(parsenlp.Expression('Qslack_max[i]+Qset[i]+dQ-Q[i]',['i'],[[i]]).parse(),lowerbound=0.,upperbound=20.e3)
 
 	for j in range(M):
 		if i==0:
-			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p0[j])**2))',['i','j'],[[i],[j]]),lowerbound=0.,upperbound=10.)
+			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p0[j])**2))',['i','j'],[[i],[j]]).parse(),lowerbound=0.,upperbound=10.)
 		else:
-			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]),lowerbound=0.,upperbound=10.)
+			problem.add_constraint(parsenlp.Expression('move[i]-(1-exp(-200*(p[i,j]-p[i-1,j])**2))',['i','j'],[[i],[j]]).parse(),lowerbound=0.,upperbound=10.)
 
 
 problem.solve()
