@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
-
-#	This file is part of parsenlp.
+#    This file is part of parsenlp.
 #
 #    parsenlp is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -17,7 +16,6 @@
 #    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-
 
 class Expression:
 	"""
