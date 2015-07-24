@@ -34,7 +34,6 @@ N = 8  # time steps
 M = 4  # windows
 
 problem = parsenlp.Problem()
-help(problem)
 
 p0 = 0.60*np.ones(M)
 Qset = 1000.*np.ones(N)

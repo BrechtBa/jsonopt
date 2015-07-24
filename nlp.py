@@ -22,7 +22,7 @@ import sympy
 try:
 	import pyipopt
 except:
-	print('Warning: pyipopt not found, defined problems can not be solved using parsenlp.Problem.solve()')
+	print('Warning: pyipopt not found, defined problems can not be solved using parsenlp.Problem.solve(), try installing pyipopt from https://github.com/xuy/pyipopt')
 
 class Problem:
 	"""
@@ -263,24 +263,25 @@ class Problem:
 		
 		if x0 == None:
 			x0 = self.get_values()
-		
-		pyipoptproblem = pyipopt.create(len(self._variables),
-										self.get_variable_lowerbounds(),
-										self.get_variable_upperbounds(),
-										len(self._constraints),
-										self.get_constraint_lowerbounds(),
-										self.get_constraint_upperbounds(),
-										len(self.jacobian(x0,False)),
-										0,
-										self.objective,
-										self.gradient,
-										self.constraint,
-										self.jacobian)
+		try:
+			pyipoptproblem = pyipopt.create(len(self._variables),
+											self.get_variable_lowerbounds(),
+											self.get_variable_upperbounds(),
+											len(self._constraints),
+											self.get_constraint_lowerbounds(),
+											self.get_constraint_upperbounds(),
+											len(self.jacobian(x0,False)),
+											0,
+											self.objective,
+											self.gradient,
+											self.constraint,
+											self.jacobian)
 
-		x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
-		self.set_values(x)
-		pyipoptproblem.close()
-
+			x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
+			self.set_values(x)
+			pyipoptproblem.close()
+		except:
+			raise Exception('pyipopt not found. You can try solving the problem using another solver using the parsenlp.Problem.objective, parsenlp.Problem.gradient, parsenlp.Problem.constraint, parsenlp.Problem.jacobian functions')
 		
 	
 	
