@@ -19,41 +19,47 @@
 
 import numpy as np
 import sympy
-import pyipopt
+#import pyipopt
 
 
 class Problem:
 	def __init__(self):
-		self.variables = []
-		self.parameters = []
+		self.variables = Variables()
+		self._variables = []
+		self.parameters = Variables()
+		self._parameters = []
 		self.objective = None
 		self.constraints = []
-
+		
 	def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
 		
 		if value==None:
 			value = 0.5*lowerbound + 0.5*upperbound
 
-		symvar = sympy.Symbol( 'symvar{0}'.format(len(self.variables)) )
-		evalvar = 'symvar[{0}]'.format(len(self.variables))
-		self.variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound,value=value) )
-		return self.variables[-1]
+		symvar = sympy.Symbol( 'symvar{0}'.format(len(self._variables)) )
+		evalvar = 'symvar[{0}]'.format(len(self._variables))
+		self._variables.append( Variable(name,symvar,evalvar,lowerbound=lowerbound,upperbound=upperbound,value=value) )
+		self.variables._add(self._variables[-1])
+		
+		return self._variables[-1]
 
 	def get_variable(self,name):
-		ind = [i.name for i in self.variables].index(name)
-		return self.variables[ind]
+		ind = [i.name for i in self._variables].index(name)
+		return self._variables[ind]
 
 	def add_parameter(self,name,value):
-		symvar = sympy.Symbol( 'sympar{0}'.format(len(self.parameters)) )
-		evalvar = 'sympar[{0}]'.format(len(self.parameters))
-		self.parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value,value=value) )
-		return self.parameters[-1]
+		symvar = sympy.Symbol( 'sympar{0}'.format(len(self._parameters)) )
+		evalvar = 'sympar[{0}]'.format(len(self._parameters))
+		self._parameters.append( Variable(name,symvar,evalvar,lowerbound=value,upperbound=value,value=value) )
+		self.parameters._add(self._parameters[-1])
+		
+		return self._parameters[-1]
 
 	def set_objective(self,string,gradientdict=None):
-		self.objective = Function(string,self.variables,self.parameters,gradientdict=gradientdict)
+		self.objective = Function(string,self._variables,self._parameters,gradientdict=gradientdict)
 
 	def add_constraint(self,string,gradientdict=None,lowerbound=0.0,upperbound=0.0,name=''):
-		self.constraints.append( Constraint(string,self.variables,self.parameters,gradientdict=gradientdict,lowerbound=lowerbound,upperbound=upperbound,name=name) )
+		self.constraints.append( Constraint(string,self._variables,self._parameters,gradientdict=gradientdict,lowerbound=lowerbound,upperbound=upperbound,name=name) )
 		return self.constraints[-1]
 
 	def get_constraint(self,name):
@@ -99,14 +105,14 @@ class Problem:
 	# get functions
 	def get_variable_lowerbounds(self):
 		values = []
-		for i in self.variables:
+		for i in self._variables:
 			values.append(i.lowerbound)
 		
 		return np.array(values)
 
 	def get_variable_upperbounds(self):
 		values = []
-		for i in self.variables:
+		for i in self._variables:
 			values.append(i.upperbound)
 		
 		return np.array(values)
@@ -126,10 +132,10 @@ class Problem:
 		return np.array(values)
 
 	def get_values(self):
-		return np.array([v.value for v in self.variables])
+		return np.array([v.value for v in self._variables])
 
 	def set_values(self,x):
-		for var,val in zip(self.variables,x):
+		for var,val in zip(self._variables,x):
 			var.value = val
 
 
@@ -139,7 +145,7 @@ class Problem:
 		if x0 == None:
 			x0 = self.get_values()
 		
-		nlp = pyipopt.create(   len(self.variables),
+		nlp = pyipopt.create(   len(self._variables),
 								self.get_variable_lowerbounds(),
 								self.get_variable_upperbounds(),
 								len(self.constraints),
@@ -156,8 +162,9 @@ class Problem:
 		self.set_values(x)
 		nlp.close()
 
-
-# Variables
+###############################################################################
+# Variable                                                                    #
+###############################################################################
 class Variable:
 	def __init__(self,name,symvar,evalvar,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
 		self.name = name
@@ -176,8 +183,55 @@ class Variable:
 	def set_upperbound(self,value):
 		self.upperbound = value
 		
+###############################################################################
+# Variables                                                                   #
+###############################################################################
+class Variables:
+	"""
+	Container class for variables to allow easy access
+	"""
+	def __init__(self):
+		self.variables = {}
 		
-# Functions
+	def _add(self,variable):
+		# check if it is an indexed variable
+		var = variable.name
+		i = variable.name.find('[')
+		if  i>0:
+			var = variable.name[:i]
+			ind = variable.name[i+1:-1]
+		
+			# create a dummy np array witch ranges to the maximum dimension
+			ind = tuple(int(i) for i in ind.split(','))
+			dim = [int(i)+1 for i in ind]
+			if var in self.variables:
+				for i,(s,d) in enumerate( zip( self.variables[var].shape,dim) ):
+					if s > d:
+						dim[i] = s
+			dim = tuple(dim)
+			
+			temp = np.empty(dim,dtype=object)
+			if var in self.variables:
+			
+				for i, v in np.ndenumerate(self.variables[var]):
+					temp[i] = v
+				
+			# fill in the current index
+			temp[ind] = variable
+			self.variables[var] = temp
+
+		# either way add the full variable name to the dictionary so both outer indexing and string indexing is possible
+		self.variables[variable.name] = variable
+			
+	def __getitem__(self,key):
+		return self.variables[key]
+		
+	def keys(self):
+		return self.variables.keys()
+		
+###############################################################################	
+# Function                                                                    #
+###############################################################################
 class Function:
 	def __init__(self,string,variables,parameters,gradientdict=None):
 		"""
@@ -305,8 +359,9 @@ class Function:
 		sympar = np.array([p.value for p in self.parameters])
 		return eval(self.gradientevaluationstring)
 
-
-# Constraint
+###############################################################################
+# Constraint                                                                  #
+###############################################################################
 class Constraint(Function):
 	def __init__(self,string,variables,parameters,gradientdict=None,lowerbound=0.0,upperbound=0.0,name=''):
 		Function.__init__(self,string,variables,parameters,gradientdict=gradientdict)
