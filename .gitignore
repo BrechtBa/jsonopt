@@ -1,1 +1,4 @@
 *.pyc
+dist
+parsenlp.egg-info
+build
