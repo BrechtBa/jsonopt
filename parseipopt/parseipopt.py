@@ -18,17 +18,20 @@
 import json
 import ad
 from ad.admath import *
+import re
 
 try:
 	import pyipopt
 except:
 	print('Warning: pyipopt not found, defined problems can not be solved using json2ipopt.Problem.solve(), try installing pyipopt from https://github.com/xuy/pyipopt')
-
+	print('')
+	
+	
 class Problem:
 	"""
 	Class for defining a non-linear program
 	"""
-	def __init__(self,jsonstring):
+	def __init__(self,jsonstring=None):
 		"""
 		create an optimization problem from a jsonstring
 		Arguments:
@@ -40,84 +43,127 @@ class Problem:
 		self.constraints = []
 		self.objective = None
 		
-		# parse the json nlp definition .read().decode('utf-8')
-		problem = json.loads(jsonstring)
 		
-		# create variables list
-		for varstr in problem['variables']:
+		if jsonstring != None:
+			# parse the json nlp definition .read().decode('utf-8')
+			problem = json.loads(jsonstring)
 			
-			self.variables = self.variables + self.parse_variables(varstr)
-		
-		# add parameters to the variables list
-		for varstr in problem['parameters']:
-			self.variables = self.variables + self.parse_variables(varstr)
-		
+			# create variables list
+			for expression in problem['variables']:
+				self.add_variable(expression)
 			
-		
-		
-	def parse_variables(self,varstr):
-		# look for the " for " keyword in the variable string
-		forpos = varstr.find(' for ')
-		if forpos < 0:
-			# look for an equality sign
-			eqpos = varstr.find('=')
-			if eqpos < 0:
-				return [Variable(varstr)]
+			# add parameters to the variables list
+			for expression in problem['parameters']:
+				self.add_variable(expression)
+			
+			# add constraints to the constraint list
+			for expression in problem['constraints']:
+				self.add_constraint(expression)
+			
+			# set the objective
+			
 				
+	def add_variable(self,expression):
+		"""
+		Adds a variable to the problem from a string expression
+		Arguments:
+		expression: string, variable name expression in python code with optional default value
+		Example:
+		nlp = parseipopt.problem()
+		nlp.add_variable('T[j] for j in range(25)')
+		nlp.add_variable('p[j] = 0.20 for j in range(24)')
+		"""
+		
+		evalstr = self._parse_for_loop(expression)
+
+		for expr in eval(evalstr):
+			
+			(lhs,rhs,eq) = self._parse_equation(expr)
+			if rhs == '':
+				self.variables.append(Variable(lhs.lstrip().rstrip()))
 			else:
-				# it is a parameter
-				lhs = varstr[:eqpos]
-				rhs = varstr[eqpos+1:]
-				return [Variable(lhs,lowerbound=eval(rhs),upperbound=eval(rhs))]
+				self.variables.append(Variable(lhs.lstrip().rstrip(),lowerbound=eval(rhs),upperbound=eval(rhs)))
+				
+		
+	def add_parameter(self,expression):
+		"""
+		alias of add_variable, parameters are treated as variables with equal lower and upper bound
+		"""
+		self.add_variable(expression)
+		
+		
+	def add_constraint(self,expression):		
+		"""
+		Adds a constraint to the problem from a string expression
+		Arguments:
+		expression: string, equation or inequality expression in python code
+		Example:
+		nlp = parseipopt.problem()
+		nlp.add_constraint('C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)')
+		nlp.add_constraint('Tmin <= T[j] for j in range(24)')
+		"""	
+		
+		evalstr = self._parse_for_loop(expression)
+		
+		for expr in eval(evalstr):	
+			(lhs,rhs,type) = self._parse_equation(expr)
+			
+			if type =='':
+				raise Exception('A constraint must contain an "=", "<=" or ">=" operator: ',expr)
+			
+			self.constraints.append(Constraint(lhs+'-('+rhs+')',type))
+			
+			
+		
+	def _parse_for_loop(self,expression):
+		# look for the " for " keyword in the variable string
+		forpos = expression.find(' for ')
+		if forpos < 0:
+			contentevalstr = '["'+expression+'"]'
 			
 		else:
-			name = varstr[:forpos]
-			loop = varstr[forpos:]
-						
-			# look for an equality sign
-			eqpos = varstr.find('=')
-			if eqpos < 0:
-				lhs = name
-				rhs = 'None'
-			else:
-				lhs = name[:eqpos]
-				rhs = name[eqpos+1:]
-			
-			# find square brackets in the variable name
-			ind_brackets_open = lhs.find('[')
-			ind_brackets_close = lhs.find(']')
-			
-			# part before the brackets
-			varname = lhs[:ind_brackets_open]
-			# part inside the brackets
-			varindstr = lhs[ind_brackets_open+1:ind_brackets_close]
-			
-			varind = varindstr.split(',')
-			for ind in varind:
-				lhs = lhs.replace(ind,'{}')
-				rhs = rhs.replace(ind,'{}')
+			content = expression[:forpos+1]
+			loop = expression[forpos:]
 				
-			# string which results in a list of variable names when evaluated
-			lhsevalstr = '["'+lhs+'".format('+varindstr+') '+loop+']' 
-			rhsevalstr = '["'+rhs+'".format('+varindstr+') '+loop+']' 
+			# get the indices from the for loop
+			indstr = []
+			for sub in re.findall(r'for \w in',loop):
+				indstr.append( sub[4:sub.find(' in')] )
 			
-			print(lhsevalstr)
-			print(rhsevalstr)
+			# replace occurrences of indstr with {}
+			for i,index in enumerate(indstr):
+				content = content.replace('['+index,'[{%s}'%i)
+				content = content.replace(','+index,',{%s}'%i)
+				
+				content = content.replace(' '+index+' ',' {%s} '%i)
+				
+				contentevalstr = '["'+content+'".format('+','.join(indstr)+') '+loop+']' 
 			
-			variables = []
-			for expression,value in zip(eval(lhsevalstr),eval(rhsevalstr)):
-
-				if eval(value) == None:
-					variables.append(Variable(expression))
-					#'["T[%s,%s]"%(i,j) for i in range(24) for j in range(3)]'
-				else:
-					variables.append(Variable(expression,lowerbound=eval(value),upperbound=eval(value)))
-			
-			return variables
-			
+		return contentevalstr	
 		
-	
-	
+	def _parse_equation(self,expression):
+		eqpos = expression.find('=')
+		gepos = expression.find('>=')
+		lepos = expression.find('<=')
+		
+		if gepos > 0:
+			lhs = expression[:gepos]
+			rhs = expression[gepos+2:]
+			type = 'G'
+		elif lepos > 0:
+			lhs = expression[:lepos]
+			rhs = expression[lepos+2:]
+			type = 'L'
+		elif eqpos > 0:
+			lhs = expression[:eqpos]
+			rhs = expression[eqpos+1:]
+			type = 'E'
+		else:
+			lhs = expression
+			rhs = ''
+			type = ''
+			
+		return (lhs,rhs,type)
 		
 		
 	# def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
@@ -367,40 +413,58 @@ class Variable:
 	def __init__(self,expression,lowerbound=-1e20,upperbound=1e20):
 	
 		self.expression = expression
-		self.lowerbound = lowerbound;
-		self.upperbound = upperbound;
+		self.lowerbound = lowerbound
+		self.upperbound = upperbound
 
 
 	
 class Function:
-	def __init__(self,expression,variables):
-	
-		self.variables = variables
-		self.expression = expression;
-		
-	def set_values(self,_value):
+	def __init__(self,expression):
+		self.expression = expression
+
+	def set_values(self,_variables,_values):
 		_advariables = []
 		
-		for _var,_val in zip(self.variables,_value):
+		_vars = {}
+		_expr = self.expression
+		for _var,_val in zip(_variables,_values):
 			_advar = ad.adnumber(_val)
 			_advariables.append(_advar)
 			
-			exec('{} = _advar'.format(_var.expression))
-			_adfunction = eval(self.expression)
+			_vars[_var.expression] = ad.adnumber(_val)
+			_expr = _expr.replace(_var.expression,'_vars["'+_var.expression+'"]')
+			#this doesn't work for array variables
+			#exec('{} = _advar'.format(_var.expression))
+			
+		_adfunction = eval(_expr)
 		return _adfunction,_advariables
 	
-	def gradient(self,val):
-		_adfunction,_advariables = self.set_values(val)
+	def gradient(self,var,val):
+		_adfunction,_advariables = self.set_values(var,val)
 		return _adfunction.gradient( _advariables )
 		
-	def hessian(self,val):
-		_adfunction,_advariables = self.set_values(val)
+	def hessian(self,var,val):
+		_adfunction,_advariables = self.set_values(var,val)
 		return _adfunction.hessian( _advariables )
 		
-	def __call__(self,val):
-		_adfunction,_advariables = self.set_values(val)
-		return _expression.real
+	def __call__(self,var,val):
+		_adfunction,_advariables = self.set_values(var,val)
+		return _adfunction.real
 	
+	
+class Constraint(Function):
+	def __init__(self,expression,type):
+		Function.__init__(self,expression)	
+		if type == 'E':
+			self.lowerbound = 0
+			self.upperbound = 0
+		elif type == 'L':
+			self.lowerbound = -1e20
+			self.upperbound = 0	
+		elif type == 'G':
+			self.lowerbound = 0
+			self.upperbound = 1e20
+			
 # ###############################################################################
 # # ObjectContainer                                                             #
 # ###############################################################################
