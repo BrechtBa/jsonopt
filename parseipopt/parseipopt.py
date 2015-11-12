@@ -43,37 +43,81 @@ class Problem:
 		# parse the json nlp definition .read().decode('utf-8')
 		problem = json.loads(jsonstring)
 		
-		# create variables
+		# create variables list
 		for varstr in problem['variables']:
+			
 			self.variables = self.variables + self.parse_variables(varstr)
 		
+		# add parameters to the variables list
+		for varstr in problem['parameters']:
+			self.variables = self.variables + self.parse_variables(varstr)
+		
+			
 		
 		
 	def parse_variables(self,varstr):
 		# look for the " for " keyword in the variable string
 		forpos = varstr.find(' for ')
-		if forpos>0:
-			loop = varstr[forpos:]
-			name = varstr[:forpos]
-			
-			# find square brackets in the variable name
-			ind_brackets_open = name.find('[')
-			ind_brackets_close = name.find(']')
-			varname = name[:ind_brackets_open]
-			varindstr = name[ind_brackets_open+1:ind_brackets_close]
-			varind = varindstr.split(',')
-			for ind in varind:
-				name = name.replace(ind,'{}')
-			
-			evalstr = '["'+name+'".format('+varindstr+') '+loop+']' 
-			print(evalstr)
-			return(eval(evalstr))
-			#'["T[%s,%s]"%(i,j) for i in range(24) for j in range(3)]'
+		if forpos < 0:
+			# look for an equality sign
+			eqpos = varstr.find('=')
+			if eqpos < 0:
+				return [Variable(varstr)]
+				
+			else:
+				# it is a parameter
+				lhs = varstr[:eqpos]
+				rhs = varstr[eqpos+1:]
+				return [Variable(lhs,lowerbound=eval(rhs),upperbound=eval(rhs))]
 			
 		else:
-			return [varstr];
+			name = varstr[:forpos]
+			loop = varstr[forpos:]
+						
+			# look for an equality sign
+			eqpos = varstr.find('=')
+			if eqpos < 0:
+				lhs = name
+				rhs = 'None'
+			else:
+				lhs = name[:eqpos]
+				rhs = name[eqpos+1:]
+			
+			# find square brackets in the variable name
+			ind_brackets_open = lhs.find('[')
+			ind_brackets_close = lhs.find(']')
+			
+			# part before the brackets
+			varname = lhs[:ind_brackets_open]
+			# part inside the brackets
+			varindstr = lhs[ind_brackets_open+1:ind_brackets_close]
+			
+			varind = varindstr.split(',')
+			for ind in varind:
+				lhs = lhs.replace(ind,'{}')
+				rhs = rhs.replace(ind,'{}')
+				
+			# string which results in a list of variable names when evaluated
+			lhsevalstr = '["'+lhs+'".format('+varindstr+') '+loop+']' 
+			rhsevalstr = '["'+rhs+'".format('+varindstr+') '+loop+']' 
+			
+			print(lhsevalstr)
+			print(rhsevalstr)
+			
+			variables = []
+			for expression,value in zip(eval(lhsevalstr),eval(rhsevalstr)):
+
+				if eval(value) == None:
+					variables.append(Variable(expression))
+					#'["T[%s,%s]"%(i,j) for i in range(24) for j in range(3)]'
+				else:
+					variables.append(Variable(expression,lowerbound=eval(value),upperbound=eval(value)))
+			
+			return variables
+			
 		
-		
+	
+	
 		
 		
 	# def add_variable(self,name,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
@@ -319,7 +363,12 @@ class Problem:
 		
 
 
-
+class Variable:
+	def __init__(self,expression,lowerbound=-1e20,upperbound=1e20):
+	
+		self.expression = expression
+		self.lowerbound = lowerbound;
+		self.upperbound = upperbound;
 
 
 	
