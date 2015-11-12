@@ -428,15 +428,13 @@ class Function:
 		_vars = {}
 		_expr = self.expression
 		for _var,_val in zip(_variables,_values):
-			_advar = ad.adnumber(_val)
-			_advariables.append(_advar)
-			
 			_vars[_var.expression] = ad.adnumber(_val)
-			_expr = _expr.replace(_var.expression,'_vars["'+_var.expression+'"]')
-			#this doesn't work for array variables
-			#exec('{} = _advar'.format(_var.expression))
+			_advariables.append(_vars[_var.expression])
 			
+			_expr = _expr.replace(_var.expression,'_vars["'+_var.expression+'"]')
+		
 		_adfunction = eval(_expr)
+
 		return _adfunction,_advariables
 	
 	def gradient(self,var,val):
