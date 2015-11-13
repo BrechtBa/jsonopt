@@ -18,7 +18,7 @@
 		"Pmax = 2000",
 		"Qmax = 6000"
 	],
-	"objectjve": 
+	"objective": 
 		"sum(p[j]*P[j] for j in range(24))",
 	"constraints":[
 		"C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)",
