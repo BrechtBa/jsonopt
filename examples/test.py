@@ -7,24 +7,23 @@ with open('nlp.json', 'r') as jsonfile:
 
 problem = parseipopt.Problem(jsonstring)
 
-# # variables
+# variables
+print('')
 print([var.expression for var in problem.variables])
-# print(problem.variables[0].expression)
-# print(problem.variables[0].lowerbound)
-# print(problem.variables[0].upperbound)
-# print(problem.variables[-1].expression)
-# print(problem.variables[-1].lowerbound)
-# print(problem.variables[-1].upperbound)
+print(problem.variables[1].index)
 
-
-# # constraints
-# print(problem.constraints[-1].expression)
-# print(problem.constraints[-1].lowerbound)
-# print(problem.constraints[-1].upperbound)
-
-# print( problem.constraints[-1](problem.variables,[ np.random.random() for var in problem.variables]) )
-# print( problem.constraints[-1].gradient(problem.variables,[ np.random.random() for var in problem.variables]) )
+x = problem.get_temp_values();
 
 # objective
-#print( problem.objective(problem.variables,[ np.random.random() for var in problem.variables]) )
-#print( problem.objective.gradient(problem.variables,[ np.random.random() for var in problem.variables]) )
+print('')
+print( problem.objective(x) )
+print( problem.objective.gradient(x) )
+
+# constraints
+print('')
+print(problem.constraints[0].expression)
+print(problem.constraints[0].lowerbound)
+print(problem.constraints[0].upperbound)
+
+print(problem.constraints[0](x) )
+print(problem.constraints[0].gradient(x) )
