@@ -6,9 +6,9 @@ Check the examples for details
 
 ### prerequisites:
  - numpy: http://www.numpy.org/
- - sympy: optional, http://www.sympy.org/
+ - ad: http://pythonhosted.org/ad/index.html/
  - ipopt: optional, https://projects.coin-or.org/Ipopt
  - pyipopt: optional, https://github.com/xuy/pyipopt
  
 ### installation
-clone into your python "site-packages" or "dist-packages" folder
+run python setup.py install

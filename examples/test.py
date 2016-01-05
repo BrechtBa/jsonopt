@@ -1,11 +1,11 @@
-import parseipopt
+import parsenlp
 import numpy as np
 
 
 with open('nlp.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
-problem = parseipopt.Problem(jsonstring)
+problem = parsenlp.Problem(jsonstring)
 
 # variables
 print('Problem Variables')
