@@ -11,4 +11,8 @@ Check the examples for details
  - pyipopt: optional, https://github.com/xuy/pyipopt
  
 ### installation
-run python setup.py install
+clone or download the [latest release](https://github.com/BrechtBa/parsenlp/releases/) and run
+
+```
+python setup.py install
+```
