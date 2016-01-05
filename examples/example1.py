@@ -17,47 +17,30 @@
 
 import parsenlp
 import numpy as np
+import matplotlib.pyplot as plt
 
-
+# load the problem from a file in json format
 with open('nlp1.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
+	
+# parse the problem
 problem = parsenlp.Problem(jsonstring)
 
-# variables
-print('Problem Variables')
-print([var.expression for var in problem.variables])
+# solve and get the solution
+problem.solve()
+sol = problem.get_value_dict()
 
-x = problem.get_values()
-print(x)
-v = problem.get_value_dict()
-print(v)
+# plot
+t = np.arange(sol['p'].shape)
 
-# objective
-print('Problem Objective')
-print( problem.objective(x) )
-print( problem.objective.gradient(x) )
+plt.subplot(211)
+plt.plot(t,sol['T'][:-1],'k',label='T')
+plt.plot(t,sol['Ta'],'b',label='Ta')
+plt.legend()
 
-# constraints
-print('Single constraint')
-print( problem.constraints[0].expression )
-print( problem.constraints[0].lowerbound )
-print( problem.constraints[0].upperbound )
-
-print( problem.constraints[0](x) )
-print( problem.constraints[0].gradient(x) )
-
-
-# gradient
-print('Problem Gradient')
-print( problem.gradient(x) )
-
-# constraint
-print('Problem Constraints')
-print( problem.constraint(x) )
-print( problem.get_constraint_upperbounds() )
-
-# jacobian
-print('Problem Jacobian')
-print( problem.jacobian(x,True) )
-print( problem.jacobian(x,False) )
+plt.subplot(212)
+plt.plot(t,sol['Q'],'r',label='Q')
+plt.plot(t,sol['P'],'k',label='P')
+plt.legend()
+plt.show()
