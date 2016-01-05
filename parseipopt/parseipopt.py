@@ -87,27 +87,14 @@ class Problem:
 		name = name.lstrip().rstrip()
 		
 		if rhs == '':
-			lowerbound = None
-			upperbound = None
+			lowerbound = []
+			upperbound = []
 		else:
 			lowerbound = np.array(eval('[' + rhs + loop + ']'))
 			upperbound = np.array(eval('[' + rhs + loop + ']'))
 				
-		
 		# add the variable to the problem
 		self.variables.append( Variable(self,name,indexvalue,lowerbound,upperbound) )
-		
-		
-		# for expr in eval(evalstr):
-
-			# print(expr)
-			
-			# (lhs,rhs,eq) = _parse_equation(expr)
-			# #if rhs == '':
-			# #	self.variables.append(Variable(lhs.lstrip().rstrip()))
-			# #else:
-			# #	self.variables.append(Variable(lhs.lstrip().rstrip(),lowerbound=eval(rhs),upperbound=eval(rhs)))
-				
 		
 	def add_parameter(self,expression):
 		"""
@@ -166,133 +153,161 @@ class Problem:
 		
 		self.objective = Function(self,expression)
 		
-	def get_temp_values(self):
-		val = []
+	def count_variables(self):
+		val = 0;
 		for var in self.variables:
-			for i,index in enumerate(var.index):
-				val.append( 0.5*var.lowerbound[i] + 0.5*var.upperbound[i] )
-				
+			val += len(var.index)
+			
 		return val
 	
-	# # callbacks
-	# def gradient(self,x):
-		# """
-		# computes the objective function gradient
+	# callbacks
+	def gradient(self,x):
+		"""
+		computes the objective function gradient
 		
-		# Arguments:
-		# x:  list or numpy array of values with length equal to the number of variables
-		# """
+		Arguments:
+		x:  list or numpy array of values with length equal to the number of variables
+		"""
 		
-		# return self.objective.gradient(x);
+		return self.objective.gradient(x);
 
-	# def constraint(self,x):
-		# """
-		# computes all constraint functions values
+	def constraint(self,x):
+		"""
+		computes all constraint functions values
 		
-		# Arguments:
-		# x:  list or numpy array of values with length equal to the number of variables
-		# """
+		Arguments:
+		x:  list or numpy array of values with length equal to the number of variables
+		"""
 		
-		# result = []
-		# for c in self._constraints:
-			# result.append( c(x) )
+		result = []
+		for c in self.constraints:
+			result.append( c(x) )
 
-		# return np.array(result,dtype=np.float)
+		return np.array(result,dtype=np.float)
 
-	# def jacobian(self,x,flag):
-		# """
-		# computes the constraint jacobian matrix in the sparse form ipopt requires
+	def jacobian(self,x,flag):
+		"""
+		computes the constraint jacobian matrix in the sparse form ipopt requires
 		
-		# Arguments:
-		# x:     list or numpy array of values with length equal to the number of variables
-		# flag:  boolean, when True the rows and columns of all always non zero entries are returned when False the values of these elements are returned
-		# """
+		Arguments:
+		x:     list or numpy array of values with length equal to the number of variables
+		flag:  boolean, when True the rows and columns of all non zero entries are returned when False the values of these elements are returned
+		"""
 		
-		# if flag:
-			# row = []
-			# col = []
+		if flag:
+			x_temp1 = np.random.random(len(x))
+			x_temp2 = np.random.random(len(x))
+			row = []
+			col = []
 			
-			# for i,c in enumerate(self._constraints):
-				# for j,g in enumerate(c.gradientexpression):
-					# if g != '0':
-						# row.append(i)
-						# col.append(j)
+			for i,c in enumerate(self.constraints):
+				for j in c.nonzero_gradient_columns:
+					row.append(i)
+					col.append(j)
 
-			# return (np.array(row),np.array(col))
-		# else:
-			# val = []
-			# for i,c in enumerate(self._constraints):
-				# grad = c.gradient(x)
-				# for j,g in enumerate(c.gradientexpression):
-					# if g != '0':
-						# val.append(grad[j])
+			return (np.array(row),np.array(col))
+			
+		else:
+			val = []
+			for i,c in enumerate(self.constraints):
+				grad = c.gradient(x)
+				for j in c.nonzero_gradient_columns:
+					val.append(grad[j])
 
-			# return np.array(val,dtype=np.float)
+			return np.array(val,dtype=np.float)
 
 
-	# # get functions
-	# def get_variable_lowerbounds(self):
-		# """
-		# returns the lower bounds of all variables
-		# """
+	# get and set functions
+	def get_values(self):
+		"""
+		returns the values of all variables. These are initial values if the problem is not solved yet and the solution after problem.solve() is called
+		"""
 		
-		# values = []
-		# for i in self._variables:
-			# values.append(i.lowerbound)
+		values = np.array([])
+		for v in self.variables:
+			values = np.append(values,v.value)
+			
+		return values
 		
-		# return np.array(values)
+	def set_values(self,x):
+		"""
+		sets the values of all variables, these will be used as initial values in a subsequent call to problem.solve()
+		
+		Arguments:
+		x:  numpy.array with values, with length equal to the number of variables
+		"""
+		
+		for var in self.variables:
+			var.value = x[var.index]
+			
+	def get_value_dict(self):
+		"""
+		returns the values of all variables. in a dictionary
+		"""
+		
+		values = {}
+		for v in self.variables:
+			values[v.expression] = v.value
+			
+		return values
+		
+	def set_value_dict(self,d):
+		"""
+		sets the values of all variables, these will be used as initial values in a subsequent call to problem.solve()
+		
+		Arguments:
+		d:  dictionary with variable expressions as keys and values as value, as generated by get_value_dict()
+		"""
+		
+		for var in self.variables:
+			var.value = d[var.expression]
+	
+	
+	def get_variable_lowerbounds(self):
+		"""
+		returns the lower bounds of all variables
+		"""
+		
+		values = np.array([])
+		for v in self.variables:
+			values = np.append(values,v.lowerbound)
+		
+		return values
 
-	# def get_variable_upperbounds(self):
-		# """
-		# returns the upper bounds of all variables
-		# """
+	def get_variable_upperbounds(self):
+		"""
+		returns the upper bounds of all variables
+		"""
 		
-		# values = []
-		# for i in self._variables:
-			# values.append(i.upperbound)
+		values = np.array([])
+		for v in self.variables:
+			values = np.append(values,v.upperbound)
 		
-		# return np.array(values)
+		return values
 
-	# def get_constraint_lowerbounds(self):
-		# """
-		# returns the lower bounds of all constraints
-		# """
+	def get_constraint_lowerbounds(self):
+		"""
+		returns the lower bounds of all constraints
+		"""
 		
-		# values = []
-		# for i in self._constraints:
-			# values.append(i.lowerbound)
+		values = np.array([])
+		for c in self.constraints:
+			values = np.append(values,c.lowerbound)
 		
-		# return np.array(values)
+		return values
 
-	# def get_constraint_upperbounds(self):
-		# """
-		# returns the upper bounds of all constraints
-		# """
+	def get_constraint_upperbounds(self):
+		"""
+		returns the upper bounds of all constraints
+		"""
 		
-		# values = []
-		# for i in self._constraints:
-			# values.append(i.upperbound)
+		values = np.array([])
+		for c in self.constraints:
+			values = np.append(values,c.upperbound)
 		
-		# return np.array(values)
+		return values
 
-	# def get_values(self):
-		# """
-		# returns the values of all variables. These are initial values if the problem is not solved yet and the solution after problem.solve() is called
-		# """
-		
-		# return np.array([v.value for v in self._variables])
-
-	# def set_values(self,x):
-		# """
-		# sets the values of all variables, these will be used as initial values in a subsequent call to problem.solve()
-		
-		# Arguments:
-		# x:  list or numpy.array with values, with length equal to the number of variables
-		# """
-		
-		# for var,val in zip(self._variables,x):
-			# var.value = val
-
+			
 	# # solve the problem using pyipopt
 	# def solve(self,x0=None):
 		# """
@@ -327,7 +342,7 @@ class Problem:
 
 
 class Variable:
-	def __init__(self,problem,expression,indexvalue,lowerbound=None,upperbound=None):
+	def __init__(self,problem,expression,indexvalue,lowerbound=[],upperbound=[]):
 		"""
 		Arguments:
 		expression: string, 
@@ -350,13 +365,24 @@ class Variable:
 		else:
 			self.index = self.problem.variables[-1].index[-1] + np.arange(num) +1
 		
+		# assign values
+		if len(lowerbound) != num and len(upperbound) != num:
+			self.value = 0*np.ones_like(self.index)
+		elif len(lowerbound) != num:
+			self.value = upperbound
+		elif len(upperbound) != num:
+			self.value = lowerbound
+		else:
+			self.value = 0.5*lowerbound + 0.5*upperbound
+			
+			
 		# assign bounds
-		if lowerbound == None:
+		if len(lowerbound) != num:
 			self.lowerbound = -1.0e-20*np.ones_like(self.index)
 		else:
 			self.lowerbound = lowerbound
 		
-		if upperbound == None:
+		if len(upperbound) != num:
 			self.upperbound = +1.0e-20*np.ones_like(self.index)
 		else:
 			self.upperbound = upperbound	
@@ -389,6 +415,8 @@ class Function:
 		self.grad = grad
 		self.hess = hess
 		
+		self.nonzero_gradient_columns = self.get_nonzero_gradient_columns()
+		
 	def set_values(self,_variables,_values):
 		_advariables = []
 		
@@ -403,7 +431,21 @@ class Function:
 		_adfunction = eval(_expr)
 
 		return _adfunction,_advariables
+		
+	def get_nonzero_gradient_columns(self):
 	
+		n = self.problem.count_variables()
+		x1 = np.random.random(n)
+		x2 = np.random.random(n)
+		
+		col = []
+
+		for j, (g1,g2) in enumerate( zip(self.gradient(x1),self.gradient(x2)) ):
+			if g1 != 0 and g2!= 0:
+				col.append(j)
+	
+		return col
+		
 	def gradient(self,x):
 		return self.grad(x)
 		
@@ -487,240 +529,3 @@ def _parse_equation(expression):
 		type = ''
 		
 	return (lhs,rhs,type)
-
-
-
-
-
-
-		
-# ###############################################################################
-# # ObjectContainer                                                             #
-# ###############################################################################
-# class ObjectContainer:
-	# """
-	# Container class for objects with names to allow easy access
-	# """
-	# def __init__(self):
-		# self.objects = {}
-		
-	# def _add(self,obj):
-		# # check if it is an indexed variable
-		# if isinstance(obj.name, str):
-			# i = obj.name.find('[')
-			# if  i>0:
-				# var = obj.name[:i]
-				# ind = obj.name[i+1:-1]
-			
-				# # create a dummy np array witch ranges to the maximum dimension
-				# ind = tuple(int(i) for i in ind.split(','))
-				# dim = [int(i)+1 for i in ind]
-				# if var in self.objects:
-					# for i,(s,d) in enumerate( zip( self.objects[var].shape,dim) ):
-						# if s > d:
-							# dim[i] = s
-				# dim = tuple(dim)
-				
-				# temp = np.empty(dim,dtype=object)
-				# if var in self.objects:
-				
-					# for i, v in np.ndenumerate(self.objects[var]):
-						# temp[i] = v
-					
-				# # fill in the current index
-				# temp[ind] = obj
-				# self.objects[var] = temp
-
-		# # either way add the full obj name to the dictionary so both outer indexing and string indexing is possible
-		# self.objects[obj.name] = obj
-			
-	# def __getitem__(self,key):
-		# return self.objects[key]
-		
-	# def keys(self):
-		# return self.objects.keys()	
-		
-		
-# ###############################################################################
-# # Variable                                                                    #
-# ###############################################################################
-# class Variable:
-	# def __init__(self,name,symvar,evalvar,lowerbound=-1.0e20,upperbound=1.0e20,value=None):
-	
-		# if name.find('_x_') >=0:
-			# raise Exception('"_x_" is not allowed in a variable name, {}'.format(name))
-			
-		# if name.find('_p_') >=0:
-			# raise Exception('"_p_" is not allowed in a variable name, {}'.format(name))
-	
-		# self.name = name
-		# self.lowerbound = lowerbound
-		# self.upperbound = upperbound
-		# self._symvar = symvar
-		# self._evalvar = evalvar
-		# if value==None:	
-			# self.value = 0.5*self.lowerbound + 0.5*self.upperbound
-		# else:
-			# self.value = value
-
-	# def set_lowerbound(self,value):
-		# self.lowerbound = value
-		
-	# def set_upperbound(self,value):
-		# self.upperbound = value
-		
-# ###############################################################################	
-# # Function                                                                    #
-# ###############################################################################
-# class Function:
-	# def __init__(self,string,variables,parameters,gradientdict=None):
-		# """
-		# defines a function to be used in the optimization problem
-
-		# Arguments:
-		# string:          string to represent the expression
-		# variables:       list of parsenlp.Variable, optimization problem variables
-		# parameters:      list of parsenlp.Parameter, optimization problem parameters
-		# gradientdict:  optional, dictionary of strings which represent the nonzero derivatives with the variable name as key
-		# """
-		# self.variables = variables
-		# self.parameters = parameters
-
-		
-		# self.expression = string
-		# self.sympyexpression = self.name2sympy(self.expression)
-		# self.evaluationstring = self.name2eval(self.expression)
-
-		# # calculate gradient
-		# if gradientdict==None:
-			# self.gradientsympyexpression = self.calculate_gradient()
-			# self.gradientexpression = []
-
-			# for g in self.gradientsympyexpression:
-				# self.gradientexpression.append( self.sympy2name(g) )
-
-		# else:
-			# self.gradientexpression = []
-			# for v in self.variables:
-				# if v.name in gradientdict:
-					# self.gradientexpression.append(gradientdict[v.name])
-				# else:
-					# self.gradientexpression.append('0')
-			
-		# # calculate the evaluation string		
-		# self.gradientevaluationstring = []
-		# for g in self.gradientexpression:
-			# self.gradientevaluationstring.append( self.name2eval( g ) )
-				
-		# self.gradientevaluationstring = 'np.array([' + ','.join(self.gradientevaluationstring) + '],dtype=np.float)'
-		
-	# def gradient2dictionary(self):
-		# """
-		# returns a dictionary containing the non zero derivative with the variable name as key 
-		# """
-		# dictionary = {}
-		# for v,g in zip(self.variables,self.gradientexpression):
-			# if g != '0':
-				# dictionary[v.name] = g
-		# return dictionary
-		
-	# def name2sympy(self,string):
-		# """
-		# replace variable and parameter names with sympy variables
-		# """
-		
-		# sympyexpression = string
-		# for p in self.parameters:
-			# sympyexpression = sympyexpression.replace(p.name,str(p._symvar))
-		# for v in self.variables:
-			# sympyexpression = sympyexpression.replace(v.name,str(v._symvar))
-			
-		# return sympyexpression
-	
-	# def name2eval(self,string):
-		# """
-		# replace variable and parameter names with evaluation variables
-		# """
-		
-		# specialfunctions = {'log(':'np.log(','exp(':'np.exp(','sin(':'np.sin(','cos(':'np.cos(','tan(':'np.tan('}
-
-		# evaluationstring = string
-		# for p in self.parameters:
-			# evaluationstring = evaluationstring.replace(p.name,p._evalvar )
-		# for v in self.variables:
-			# evaluationstring = evaluationstring.replace(v.name,v._evalvar)
-		
-		# for f in specialfunctions:
-			# evaluationstring = evaluationstring.replace(f,specialfunctions[f])
-			
-		# return evaluationstring
-	
-	# def sympy2name(self,sympyexpression):
-		# """
-		# replace sympy variables and parameters with variable names
-		# """
-		
-		# expression = sympyexpression
-		# # reversed so x34 get replaced before x3
-		# for v in self.variables:
-			# expression = expression.replace(str(v._symvar),v.name)
-		# for p in reversed(self.parameters):
-				# expression = expression.replace(str(p._symvar),p.name)
-			
-		# return expression
-		
-		
-	# def calculate_gradient(self):
-		# """
-		# returns a list of strings which contain the derivatives to all variables with sympy names
-		# """
-		
-		# gradientsympyexpression = []
-		# for v in self.variables:
-			# try:
-				# gradientsympyexpression.append( str(sympy.diff(self.sympyexpression,v._symvar)) )
-			# except:
-				# raise Exception('Error while differentiating constraint: '+self.expression)
-		# return gradientsympyexpression
-		
-	
-	# def __call__(self,_x_):
-		# """
-		# return the function result
-		# """
-		# _p_ = np.array([p.value for p in self.parameters])
-		# return eval(self.evaluationstring)
-
-
-	# def gradient(self,_x_):
-		# """
-		# return the gradient result
-		# """
-		# _p_ = np.array([p.value for p in self.parameters])
-		# return eval(self.gradientevaluationstring)
-
-# ###############################################################################
-# # Constraint                                                                  #
-# ###############################################################################
-# class Constraint(Function):
-	# def __init__(self,string,variables,parameters,gradientdict=None,lowerbound=None,upperbound=None,name=''):
-		# Function.__init__(self,string,variables,parameters,gradientdict=gradientdict)
-		
-		# if lowerbound == None and upperbound == None:
-			# lowerbound = 0
-			# upperbound = 0
-		# elif lowerbound == None:
-			# lowerbound = min(0,upperbound)
-		# elif upperbound == None:
-			# upperbound = max(0,lowerbound)
-
-		# self.lowerbound = lowerbound
-		# self.upperbound = upperbound
-		# self.name = name
-
-	# def set_lowerbound(self,value):
-		# self.lowerbound = value
-
-	# def set_upperbound(self,value):
-		# self.upperbound = value
-

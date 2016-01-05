@@ -8,22 +8,39 @@ with open('nlp.json', 'r') as jsonfile:
 problem = parseipopt.Problem(jsonstring)
 
 # variables
-print('')
+print('Problem Variables')
 print([var.expression for var in problem.variables])
-print(problem.variables[1].index)
 
-x = problem.get_temp_values();
+x = problem.get_values()
+print(x)
+v = problem.get_value_dict()
+print(v)
 
 # objective
-print('')
+print('Problem Objective')
 print( problem.objective(x) )
 print( problem.objective.gradient(x) )
 
 # constraints
-print('')
-print(problem.constraints[0].expression)
-print(problem.constraints[0].lowerbound)
-print(problem.constraints[0].upperbound)
+print('Single constraint')
+print( problem.constraints[0].expression )
+print( problem.constraints[0].lowerbound )
+print( problem.constraints[0].upperbound )
 
-print(problem.constraints[0](x) )
-print(problem.constraints[0].gradient(x) )
+print( problem.constraints[0](x) )
+print( problem.constraints[0].gradient(x) )
+
+
+# gradient
+print('Problem Gradient')
+print( problem.gradient(x) )
+
+# constraint
+print('Problem Constraints')
+print( problem.constraint(x) )
+print( problem.get_constraint_upperbounds() )
+
+# jacobian
+print('Problem Jacobian')
+print( problem.jacobian(x,True) )
+print( problem.jacobian(x,False) )
