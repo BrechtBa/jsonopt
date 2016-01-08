@@ -9,6 +9,6 @@ setup(
 	author='Brecht Baeten',
 	author_email='brecht.baeten@gmail.com',
 	packages=['parsenlp'],
-	install_requires=['numpy','ad','json','re'],
+	install_requires=['numpy','ad'],
 	classifiers = [],
 )
