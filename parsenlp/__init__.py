@@ -15,4 +15,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
-from parsenlp import Problem
+try:
+	from parsenlp import *
+	
+except:
+	# python3 compatibility
+	from parsenlp.parsenlp import *
