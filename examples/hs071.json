@@ -1,0 +1,19 @@
+{
+	"variables":[
+		"x[j] for j in range(3)"
+	],
+	"parameters": [
+		"A = 25",
+		"B = 40",
+		"C = 1",
+		"D = 5"
+	],
+	"objective": 
+		"x[0]*x[3]*(x[0]+x[1]+x[2])+x[2]",
+	"constraints":[
+		"x[0]*x[1]*x[2]*x[3] <= A",
+		"x[0]**2+x[1]**2+x[2]**2+x[3]**2 = B",
+		"x[j] >= C for j in range(3)",
+		"x[j] <= D for j in range(3)"
+	]
+}

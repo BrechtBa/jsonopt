@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-#    This file is part of json2ipopt.
+#    This file is part of parsenlp.
 #
 #    parsenlp is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -15,11 +15,19 @@
 #    You should have received a copy of the GNU General Public License
 #    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
+import parsenlp
+import numpy as np
+import matplotlib.pyplot as plt
 
-try:
-	from parsenlp.parsenlp import *
+# load the problem from a file in json format
+with open('hs071.json', 'r') as jsonfile:
+    jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 	
-except:
-	# python2 compatibility
-	from parsenlp import *
+# parse the problem
+problem = parsenlp.Problem(jsonstring)
 
+# solve and get the solution
+problem.solve()
+sol = problem.get_value_dict()
+
+print( sol['x'] )

@@ -357,6 +357,10 @@ class Variable:
 		
 		self.problem = problem
 		
+		# limit the variable name length as a security feature as they are parsed using exec
+		if len(expression) > 10:
+			raise Exception('Variable names can not be longer than 10 characters')
+			
 		self.expression = expression
 		
 		# assign indexes to each variable
@@ -410,8 +414,8 @@ class Function:
 					x_expression = '[' + ','.join(['x[{}]'.format(index) for index in var.index]) +']'
 					
 				exec(var.expression + '=' + x_expression, globals(), locals() )
-				
-			return eval(self._expression,globals(),locals())
+
+			return eval(self._expression,vars())
 		
 		grad,hess = ad.gh(callback)
 		
