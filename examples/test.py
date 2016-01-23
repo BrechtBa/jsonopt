@@ -19,7 +19,7 @@ import parsenlp
 import numpy as np
 
 
-with open('nlp1.json', 'r') as jsonfile:
+with open('json/nlp1.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
 problem = parsenlp.Problem(jsonstring)
