@@ -17,17 +17,30 @@
 
 import parsenlp
 import numpy as np
-import matplotlib.pyplot as plt
 
 # load the problem from a file in json format
 with open('hs071.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
+
+best_known_objective = 17.0140173
 	
 # parse the problem
 problem = parsenlp.Problem(jsonstring)
 
-# solve and get the solution
-problem.solve()
-sol = problem.get_value_dict()
+# set initial guess
+x = problem.get_values()
+x[:4] = np.array([1.,5.,5.,1.])
 
-print( sol['x'] )
+# solve and get the solution
+problem.solve(x0=x)
+sol = problem.get_value_dict()
+obj = problem.objective(problem.get_values()) 
+
+print( 'solution: {}'.format(sol['x']) )
+print( 'objective: {}'.format(obj) )
+
+
+if abs( (obj - best_known_objective)/best_known_objective < 0.001  ):
+	print( 'OK' )
+else:
+	print( 'NOK' )

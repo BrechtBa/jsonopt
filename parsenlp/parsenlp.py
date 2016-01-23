@@ -40,6 +40,7 @@ class Problem:
 		"""
 		
 		self.variables = []
+		self.parameters = []
 		self.constraints = []
 		self.objective = None
 		
@@ -120,7 +121,7 @@ class Problem:
 
 		if type == '':
 				raise Exception('A constraint must contain an "=", "<=" or ">=" operator: ',expr)
-		
+
 		if len(indexlist) > 0:
 			index = indexlist[0];
 			for val in indexvalue:
@@ -139,6 +140,7 @@ class Problem:
 				self.constraints.append( Constraint(self,expression,type) )
 		else:
 			expression = lhs+'-('+rhs+')'
+
 			self.constraints.append( Constraint(self,expression,type) )
 				
 	def set_objective(self,expression):		
@@ -168,7 +170,7 @@ class Problem:
 		Arguments:
 		x:  list or numpy array of values with length equal to the number of variables
 		"""
-		
+
 		return self.objective.gradient(x);
 
 	def constraint(self,x):
@@ -320,7 +322,7 @@ class Problem:
 		if len(x0) == 0:
 			x0 = self.get_values()
 		try:
-			pyipoptproblem = pyipopt.create(len(self._variables),
+			pyipoptproblem = pyipopt.create(len(self.get_values()),
 											self.get_variable_lowerbounds(),
 											self.get_variable_upperbounds(),
 											len(self.constraints),
@@ -334,6 +336,7 @@ class Problem:
 											self.jacobian)
 
 			x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
+		
 			self.set_values(x)
 			pyipoptproblem.close()
 			
@@ -348,11 +351,14 @@ class Variable:
 		"""
 		Arguments:
 		expression: string, 
-		
+		indexvalue: numpy array, containing indices when the variable is a vector
+		lowerbound: numpy array, containing lower bounds
+		upperbound: numpy array, containing upper bounds
+
 		Example:
-		Variable(nlp,'Pmax',())
-		Variable(nlp,'P',(24,))
-		Variable(nlp,'p',(24,),0.2*np.ones((24,)),0.2*np.ones((24,)))
+		Variable(nlp,'Pmax',[])
+		Variable(nlp,'P',range(24))
+		Variable(nlp,'p',range(24),0.2*np.ones((24,)),0.2*np.ones((24,)))
 		"""
 		
 		self.problem = problem
@@ -384,17 +390,47 @@ class Variable:
 			
 		# assign bounds
 		if len(lowerbound) != num:
-			self.lowerbound = -1.0e-20*np.ones_like(self.index)
+			self.lowerbound = -1.0e20*np.ones_like(self.index)
 		else:
 			self.lowerbound = lowerbound
 		
 		if len(upperbound) != num:
-			self.upperbound = +1.0e-20*np.ones_like(self.index)
+			self.upperbound = +1.0e20*np.ones_like(self.index)
 		else:
 			self.upperbound = upperbound	
 
+################################################################################
+class Parameter:
+	def __init__(self,problem,expression,indexvalue,value):			
+		"""
+		Arguments:
+		expression: string, 
+		indexvalue: numpy array, containing indices when the variable is a vector
+		value: numpy array, containing the parameter values
+
+		Example:
+		Variable(nlp,'Pmax',(10,),)
+		"""		
+
+		self.problem = problem
+
+		# limit the variable name length as a security feature as they are parsed using exec
+		if len(expression) > 10:
+			raise Exception('Variable names can not be longer than 10 characters')
 			
-			
+		self.expression = expression
+		
+		# assign indexes to each variable
+		num = max(1,len(indexvalue))
+
+		if len(self.problem.variables)==0:
+			self.index =  np.arange(num)
+		else:
+			self.index = self.problem.variables[-1].index[-1] + np.arange(num) +1
+		
+		self.value = value
+
+
 ################################################################################
 class Function:
 	def __init__(self,problem,expression):
@@ -405,13 +441,13 @@ class Function:
 		
 		self._expression = expression
 		
-		def callback(x):
+		def callback(_x_):
 			# parse x
 			for var in self.problem.variables:
 				if len(var.index) ==1:
-					x_expression = 'x[{}]'.format(var.index[0])
+					x_expression = '_x_[{}]'.format(var.index[0])
 				else:
-					x_expression = '[' + ','.join(['x[{}]'.format(index) for index in var.index]) +']'
+					x_expression = '[' + ','.join(['_x_[{}]'.format(index) for index in var.index]) +']'
 					
 				exec(var.expression + '=' + x_expression, globals(), locals() )
 
@@ -473,13 +509,11 @@ class Constraint(Function):
 			self.lowerbound = 0
 			self.upperbound = 0
 		elif type == 'L':
-			self.lowerbound = -1e20
+			self.lowerbound = -1.0e20
 			self.upperbound = 0	
 		elif type == 'G':
 			self.lowerbound = 0
-			self.upperbound = 1e20
-		
-
+			self.upperbound = 1.0e20
 		
 		
 ################################################################################
