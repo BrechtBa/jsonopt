@@ -19,7 +19,7 @@ import parsenlp
 import numpy as np
 
 # load the problem from a file in json format
-with open('json/nlp1.json', 'r') as jsonfile:
+with open('json/ocp1.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
 	
@@ -31,15 +31,9 @@ problem.solve()
 sol = problem.get_value_dict()
 
 # plot
-t = np.arange(sol['p'].shape)
+t = np.arange(sol['p'].shape[0])
 
-plt.subplot(211)
-plt.plot(t,sol['T'][:-1],'k',label='T')
-plt.plot(t,sol['Ta'],'b',label='Ta')
-plt.legend()
+print(sol['T'])
+print(sol['Q'])
+print(sol['P'])
 
-plt.subplot(212)
-plt.plot(t,sol['Q'],'r',label='Q')
-plt.plot(t,sol['P'],'k',label='P')
-plt.legend()
-plt.show()
