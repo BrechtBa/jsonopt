@@ -18,46 +18,29 @@
 import parsenlp
 import numpy as np
 
-
-with open('json/nlp1.json', 'r') as jsonfile:
+# load the problem from a file in json format
+with open('json/hs101.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
+best_known_objective = 1809.76476
+	
+# parse the problem
 problem = parsenlp.Problem(jsonstring)
 
-# variables
-print('Problem Variables')
-print([var.expression for var in problem.variables])
-
+# set initial guess
 x = problem.get_values()
-print(x)
-v = problem.get_value_dict()
-print(v)
+x[:7] = 6
 
-# objective
-print('Problem Objective')
-print( problem.objective(x) )
-print( problem.objective.gradient(x) )
+# solve and get the solution
+problem.solve(x0=x)
+sol = problem.get_value_dict()
+obj = problem.objective(problem.get_values()) 
 
-# constraints
-print('Single constraint')
-print( problem.constraints[0].expression )
-print( problem.constraints[0].lowerbound )
-print( problem.constraints[0].upperbound )
-
-print( problem.constraints[0](x) )
-print( problem.constraints[0].gradient(x) )
+print( 'solution: {}'.format(sol['x']) )
+print( 'objective: {}'.format(obj) )
 
 
-# gradient
-print('Problem Gradient')
-print( problem.gradient(x) )
-
-# constraint
-print('Problem Constraints')
-print( problem.constraint(x) )
-print( problem.get_constraint_upperbounds() )
-
-# jacobian
-print('Problem Jacobian')
-print( problem.jacobian(x,True) )
-print( problem.jacobian(x,False) )
+if abs((obj - best_known_objective)/best_known_objective) < 0.001:
+	print( 'OK' )
+else:
+	print( 'NOK, best known objective: {}, current objective: {}'.format(best_known_objective,obj) )
