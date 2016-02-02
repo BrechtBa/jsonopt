@@ -320,7 +320,7 @@ class Problem:
 		if len(x0) == 0:
 			x0 = self.get_values()
 		try:
-			pyipoptproblem = pyipopt.create(len(self._variables),
+			pyipoptproblem = pyipopt.create(len(self.variables),
 											self.get_variable_lowerbounds(),
 											self.get_variable_upperbounds(),
 											len(self.constraints),
@@ -332,7 +332,7 @@ class Problem:
 											self.gradient,
 											self.constraint,
 											self.jacobian)
-
+			
 			x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
 			self.set_values(x)
 			pyipoptproblem.close()
