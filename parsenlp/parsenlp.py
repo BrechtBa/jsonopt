@@ -445,13 +445,16 @@ class Function:
 			# parse x
 			for var in self.problem.variables:
 				if len(var.index) ==1:
-					x_expression = '_x_[{}]'.format(var.index[0])
+					#x_expression = '_x_[{}]'.format(var.index[0])
+					x_value = _x_[var.index[0]]
 				else:
-					x_expression = '[' + ','.join(['_x_[{}]'.format(index) for index in var.index]) +']'
+					#x_expression = '[' + ','.join(['_x_[{}]'.format(index) for index in var.index]) +']'
+					x_value = [_x_[index] for index in var.index]
 					
-				exec(var.expression + '=' + x_expression, globals(), locals() )
-
-			return eval(self._expression,vars())
+				#exec(var.expression + '=' + x_expression, globals(), locals() )
+				locals()[var.expression] = x_value
+				
+			return eval(self._expression,vars(),{'__builtins__': None})
 		
 		grad,hess = ad.gh(callback)
 		
