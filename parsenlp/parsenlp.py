@@ -17,15 +17,14 @@
 
 import json
 import numpy as np
-import ad
-from ad.admath import *
+from numpy import *
 import re
 
 try:
-	import pyipopt
+	import casadi as cs
 except:
-	print('Warning: pyipopt not found, defined problems can not be solved using json2ipopt.Problem.solve(), try installing pyipopt from https://github.com/xuy/pyipopt')
-	print('')
+	raise ImportError('Unable to import Casadi. Try adding casady to your python path: sys.path.append(r"path\to\casadi")')
+
 	
 	
 class Problem:
@@ -58,8 +57,8 @@ class Problem:
 				self.add_variable(expression)
 			
 			# add constraints to the constraint list
-			for expression in problem['constraints']:
-				self.add_constraint(expression)
+			#for expression in problem['constraints']:
+			#	self.add_constraint(expression)
 			
 			# set the objective
 			self.set_objective(problem['objective'])
@@ -95,7 +94,7 @@ class Problem:
 			upperbound = np.array(eval('[' + rhs + loop + ']'))
 				
 		# add the variable to the problem
-		self.variables.append( Variable(self,name,indexvalue,lowerbound,upperbound) )
+		self.variables.append( Variable(self,name,len(indexvalue),lowerbound,upperbound) )
 		
 	def add_parameter(self,expression):
 		"""
@@ -344,93 +343,74 @@ class Problem:
 			raise Exception('pyipopt not found. You can try solving the problem using another solver using the parsenlp.Problem.objective, parsenlp.Problem.gradient, parsenlp.Problem.constraint, parsenlp.Problem.jacobian functions')
 		
 		
-
-################################################################################
-class Variable:
-	def __init__(self,problem,expression,indexvalue,lowerbound=[],upperbound=[]):
-		"""
-		Arguments:
-		expression: string, 
-		indexvalue: numpy array, containing indices when the variable is a vector
-		lowerbound: numpy array, containing lower bounds
-		upperbound: numpy array, containing upper bounds
-
-		Example:
-		Variable(nlp,'Pmax',[])
-		Variable(nlp,'P',range(24))
-		Variable(nlp,'p',range(24),0.2*np.ones((24,)),0.2*np.ones((24,)))
-		"""
 		
-		self.problem = problem
-		
-		# limit the variable name length as a security feature as they are parsed using exec
-		if len(expression) > 10:
-			raise Exception('Variable names can not be longer than 10 characters')
-			
-		self.expression = expression
-		
-		# assign indexes to each variable
-		num = max(1,len(indexvalue))
-
-		if len(self.problem.variables)==0:
-			self.index =  np.arange(num)
-		else:
-			self.index = self.problem.variables[-1].index[-1] + np.arange(num) +1
-		
-		# assign values
-		if len(lowerbound) != num and len(upperbound) != num:
-			self.value = 0*np.ones_like(self.index)
-		elif len(lowerbound) != num:
-			self.value = upperbound
-		elif len(upperbound) != num:
-			self.value = lowerbound
-		else:
-			self.value = 0.5*lowerbound + 0.5*upperbound
-			
-			
-		# assign bounds
-		if len(lowerbound) != num:
-			self.lowerbound = -1.0e20*np.ones_like(self.index)
-		else:
-			self.lowerbound = lowerbound
-		
-		if len(upperbound) != num:
-			self.upperbound = +1.0e20*np.ones_like(self.index)
-		else:
-			self.upperbound = upperbound	
-
 ################################################################################
 class Parameter:
-	def __init__(self,problem,expression,indexvalue,value):			
+	def __init__(self,problem,expression,length,value):			
 		"""
 		Arguments:
 		expression: string, 
-		indexvalue: numpy array, containing indices when the variable is a vector
+		length: int, length of the variable vector
 		value: numpy array, containing the parameter values
 
 		Example:
-		Variable(nlp,'Pmax',(10,),)
+		Variable(nlp,'Pmax',1,np.array([1000.]) )
 		"""		
 
 		self.problem = problem
 
-		# limit the variable name length as a security feature as they are parsed using exec
+		# limit the variable name length as a security feature as they are parsed using eval
 		if len(expression) > 10:
 			raise Exception('Variable names can not be longer than 10 characters')
 			
-		self.expression = expression
-		
-		# assign indexes to each variable
-		num = max(1,len(indexvalue))
-
-		if len(self.problem.variables)==0:
-			self.index =  np.arange(num)
-		else:
-			self.index = self.problem.variables[-1].index[-1] + np.arange(num) +1
+		self.expression = str(expression)
+		self.length = length
+		self.cs_var = cs.SX.sym(self.expression,self.length)
 		
 		self.value = value
 
+		
+################################################################################
+class Variable(Parameter):
+	def __init__(self,problem,expression,length,lowerbound=[],upperbound=[]):
+		"""
+		Arguments:
+		expression: string, variable name
+		length: int, length of the variable vector
+		lowerbound: numpy array, containing lower bounds
+		upperbound: numpy array, containing upper bounds
 
+		Example:
+		Variable(nlp,'Pmax',1)
+		Variable(nlp,'P',24)
+		Variable(nlp,'p',24,0.2*np.ones(24),0.2*np.ones(24))
+		"""
+		
+		Parameter.__init__(self,problem,expression,length,None)
+		
+		# assign values
+		if len(lowerbound) != length and len(upperbound) != length:
+			self.value = 0*np.ones(length)
+		elif len(lowerbound) != length:
+			self.value = upperbound
+		elif len(upperbound) != length:
+			self.value = lowerbound
+		else:
+			self.value = 0.5*lowerbound + 0.5*upperbound
+			
+		# assign bounds
+		if len(lowerbound) != self.length:
+			self.lowerbound = -1.0e20*np.ones(self.length)
+		else:
+			self.lowerbound = lowerbound
+		
+		if len(upperbound) != self.length:
+			self.upperbound = +1.0e20*np.ones(self.length)
+		else:
+			self.upperbound = upperbound	
+
+			
+			
 ################################################################################
 class Function:
 	def __init__(self,problem,expression):
@@ -438,47 +418,21 @@ class Function:
 		self.expression = expression
 
 		# replace variable expressions with their _expressions
-		
-		self._expression = expression
-		
-		def callback(_x_):
-			# parse x
-			for var in self.problem.variables:
-				if len(var.index) ==1:
-					#x_expression = '_x_[{}]'.format(var.index[0])
-					x_value = _x_[var.index[0]]
-				else:
-					#x_expression = '[' + ','.join(['_x_[{}]'.format(index) for index in var.index]) +']'
-					x_value = [_x_[index] for index in var.index]
-					
-				#exec(var.expression + '=' + x_expression, globals(), locals() )
-				locals()[var.expression] = x_value
-				
-			return eval(self._expression,vars(),{'__builtins__': None})
-		
-		grad,hess = ad.gh(callback)
-		
-		self.call = callback
-		self.grad = grad
-		self.hess = hess
-		
-		self.nonzero_gradient_columns = self.get_nonzero_gradient_columns()
-		
-	def set_values(self,_variables,_values):
-		_advariables = []
-		
-		_vars = {}
-		_expr = self.expression
-		for _var,_val in zip(_variables,_values):
-			_vars[_var.expression] = ad.adnumber(_val)
-			_advariables.append(_vars[_var.expression])
+		varslist = []
+		for var in self.problem.variables:
+			varslist.append(var.cs_var)
+			locals()[var.expression] = var.cs_var
 			
-			_expr = _expr.replace(_var.expression,'_vars["'+_var.expression+'"]')
+		self.cs_var = eval(self.expression,vars(),{'__builtins__': None})
+		self.cs_fun = cs.SXFunction('f',[cs.vertcat(varslist)],[self.cs_var])
 		
-		_adfunction = eval(_expr)
-
-		return _adfunction,_advariables
+		self.cs_gradient = cs.gradient(self.cs_var,cs.vertcat(varslist))
+		self.cs_gradient_fun = cs.SXFunction('g',[cs.vertcat(varslist)],[self.cs_gradient])
 		
+		self.cs_hessian = cs.hessian(self.cs_var,cs.vertcat(varslist))
+		self.cs_hessian_fun = cs.SXFunction('h',[cs.vertcat(varslist)],self.cs_hessian)
+		
+	
 	def get_nonzero_gradient_columns(self):
 	
 		n = self.problem.count_variables()
@@ -492,15 +446,18 @@ class Function:
 				col.append(j)
 	
 		return col
+	
+	def value(self,x):
+		return self.cs_fun([x])[0].toArray()
 		
 	def gradient(self,x):
-		return self.grad(x)
+		return self.cs_gradient_fun([x])[0].toArray()
 		
 	def hessian(self,x):
-		return self.hess(x)
+		return self.cs_hessian_fun([x])[0].toArray()
 		
 	def __call__(self,x):
-		return self.call(x)
+		return self.value(x)
 
 
 		

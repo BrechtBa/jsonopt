@@ -18,6 +18,8 @@
 import parsenlp
 import numpy as np
 
+
+
 # load the problem from a file in json format
 with open('json/hs071.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
