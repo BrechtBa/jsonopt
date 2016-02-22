@@ -278,7 +278,6 @@ class Problem:
 		for var in self.variables:
 			var.value = d[var.expression]
 	
-	
 	def get_variable_lowerbounds(self):
 		"""
 		returns the lower bounds of all variables
@@ -324,7 +323,7 @@ class Problem:
 		return values
 
 			
-	# solve the problem using pyipopt
+	# solve the problem using casadi - ipopt
 	def solve(self,x0=[]):
 		"""
 		solves the problem using ipopt. The solution is set to variable.value
@@ -336,42 +335,31 @@ class Problem:
 		if len(x0) == 0:
 			x0 = self.get_values()
 		try:
-			pyipoptproblem = pyipopt.create(len(self.get_values()),
-											self.get_variable_lowerbounds(),
-											self.get_variable_upperbounds(),
-											len(self.constraints),
-											self.get_constraint_lowerbounds(),
-											self.get_constraint_upperbounds(),
-											len(self.jacobian(x0,False)),
-											0,
-											self.objective,
-											self.gradient,
-											self.constraint,
-											self.jacobian)
+			nlp = {'x':cs.vertcat([var.cs_var for var in self.variables]), 'p':cs.vertcat([var.cs_var for var in self.parameters]), 'f': self.objective.cs_var, 'g': cs.vertcat([con.cs_var for con in self.constraints])}
+			
+			solver = cs.NlpSolver('solver', 'ipopt', nlp)
 
-			x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
-		
-			self.set_values(x)
-			pyipoptproblem.close()
+			lbx = self.get_variable_lowerbounds()
+			ubx = self.get_variable_upperbounds()
+			lbg = self.get_constraint_lowerbounds()
+			ubg = self.get_constraint_upperbounds()
+			
+			# solve the problem
+			sol = solver({'x0':x0,'lbx':lbx,'ubx':ubx,'lbg':lbg,'ubg':ubg})
+			
+			self.set_values(sol['x'])
+			self.solution = sol
 			
 		except:
-			raise Exception('pyipopt not found. You can try solving the problem using another solver using the parsenlp.Problem.objective, parsenlp.Problem.gradient, parsenlp.Problem.constraint, parsenlp.Problem.jacobian functions')
+			raise Exception('There was a problem while solving the problem. Is ipopt installed?')
 		
+		
+
 		
 		
 ################################################################################
-class Parameter:
-	def __init__(self,problem,expression,length,value):			
-		"""
-		Arguments:
-		expression: string, 
-		length: int, length of the variable vector
-		value: numpy array, containing the parameter values
-
-		Example:
-		Variable(nlp,'Pmax',1,np.array([1000.]) )
-		"""		
-
+class BaseVariable:
+	def __init__(self,problem,expression,length):			
 		self.problem = problem
 
 		# limit the variable name length as a security feature as they are parsed using eval
@@ -381,12 +369,33 @@ class Parameter:
 		self.expression = str(expression)
 		self.length = length
 		self.cs_var = cs.SX.sym(self.expression,self.length)
-		
-		self.value = value
 
 		
+################################################################################		
+class Parameter(BaseVariable):
+	def __init__(self,problem,expression,length,value):		
+		"""
+		Arguments:
+		problem: parsenlp problem
+		expression: string, parameter name
+		length: int, length of the parameter vector
+		value: numpy array, containing values
+		
+		Example:
+		Parameter(nlp,'Pmax',1,np.array([1000.]) )
+		"""	
+		
+		BaseVariable.__init__(self,problem,expression,length)
+		
+		# assign index
+		if len(self.problem.parameters)==0:
+			self.index =  np.arange(length)
+		else:
+			self.index = self.problem.parameters[-1].index[-1] + np.arange(length) +1
+
+
 ################################################################################
-class Variable(Parameter):
+class Variable(BaseVariable):
 	def __init__(self,problem,expression,length,lowerbound=[],upperbound=[]):
 		"""
 		Arguments:
@@ -401,11 +410,17 @@ class Variable(Parameter):
 		Variable(nlp,'p',24,0.2*np.ones(24),0.2*np.ones(24))
 		"""
 		
-		Parameter.__init__(self,problem,expression,length,None)
+		BaseVariable.__init__(self,problem,expression,length)
+		
+		# assign index
+		if len(self.problem.variables)==0:
+			self.index =  np.arange(length)
+		else:
+			self.index = self.problem.variables[-1].index[-1] + np.arange(length) +1
 		
 		# assign values
 		if len(lowerbound) != length and len(upperbound) != length:
-			self.value = 0*np.ones(length)
+			self.value = 0*np.ones_like(self.index)
 		elif len(lowerbound) != length:
 			self.value = upperbound
 		elif len(upperbound) != length:
@@ -415,12 +430,12 @@ class Variable(Parameter):
 			
 		# assign bounds
 		if len(lowerbound) != self.length:
-			self.lowerbound = -1.0e20*np.ones(self.length)
+			self.lowerbound = -1.0e20*np.ones_like(self.index)
 		else:
 			self.lowerbound = lowerbound
 		
 		if len(upperbound) != self.length:
-			self.upperbound = +1.0e20*np.ones(self.length)
+			self.upperbound = +1.0e20*np.ones_like(self.index)
 		else:
 			self.upperbound = upperbound	
 
