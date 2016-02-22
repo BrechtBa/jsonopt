@@ -18,19 +18,21 @@
 import parsenlp
 import numpy as np
 
+
+
 # load the problem from a file in json format
-with open('json/hs101.json', 'r') as jsonfile:
+with open('json/hs010.json', 'r') as jsonfile:
     jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
 
-best_known_objective = 1809.76476
+best_known_objective = -1.0
 	
 # parse the problem
 problem = parsenlp.Problem(jsonstring)
 
 # set initial guess
 x = problem.get_values()
-x[:7] = 6
-kkk
+x[:2] = np.array([-10.,10.])
+
 # solve and get the solution
 problem.solve(x0=x)
 sol = problem.get_value_dict()
@@ -40,7 +42,7 @@ print( 'solution: {}'.format(sol['x']) )
 print( 'objective: {}'.format(obj) )
 
 
-if abs((obj - best_known_objective)/best_known_objective) < 0.001:
+if abs( (obj - best_known_objective)/best_known_objective ) < 0.001:
 	print( 'OK' )
 else:
 	print( 'NOK, best known objective: {}, current objective: {}'.format(best_known_objective,obj) )

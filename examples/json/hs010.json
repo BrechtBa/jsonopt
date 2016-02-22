@@ -1,0 +1,12 @@
+{
+	"variables":[
+		"x[j] for j in range(2)"
+	],
+	"parameters": [
+	],
+	"objective": 
+		"x[0]-x[1]",
+	"constraints":[
+		"-3*x[0]**2 + 2*x[0]*x[1] - x[1]**2 >= -1"
+	]
+}

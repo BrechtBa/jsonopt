@@ -454,7 +454,7 @@ class Function:
 			locals()[var.expression] = var.cs_var
 			
 
-		self.cs_var = eval(self.expression,vars(),{'__builtins__': None})
+		self.cs_var = eval(self.expression,vars(),{'__builtins__': None,'sin':np.sin,'cos':np.cos,'tan':np.tan,'exp':np.exp,'max':np.max,'min':np.min,'abs':np.abs})
 		self.cs_fun = cs.SXFunction('f',[cs.vertcat(varslist)],[self.cs_var])
 		
 		self.cs_gradient = cs.gradient(self.cs_var,cs.vertcat(varslist))
