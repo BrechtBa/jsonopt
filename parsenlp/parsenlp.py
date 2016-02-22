@@ -102,9 +102,28 @@ class Problem:
 		
 	def add_parameter(self,expression):
 		"""
-		alias of add_variable, parameters are treated as variables with equal lower and upper bound
+		
 		"""
-		self.add_variable(expression)
+		content,loop,indexlist,indexvalue = _parse_for_array_creation(expression)
+		
+		(lhs,rhs,eq) = _parse_equation(content)
+		
+		bracket = lhs.find('[')
+		if bracket > -1:
+			name = lhs[:bracket]
+		else:
+			name = lhs
+			
+		name = name.lstrip().rstrip()
+		
+		value = np.array(eval('[' + rhs + loop + ']'))
+		print(value)
+		# add the variable to the problem
+		length = len(indexvalue)
+		if length == 0:
+			length = 1
+			
+		self.parameters.append( Parameter(self,name,length,value) )
 		
 		
 	def add_constraint(self,expression):		
@@ -452,7 +471,9 @@ class Function:
 		for var in self.problem.variables:
 			varslist.append(var.cs_var)
 			locals()[var.expression] = var.cs_var
-			
+
+		for var in self.problem.parameters:
+			locals()[var.expression] = var.cs_var
 
 		self.cs_var = eval(self.expression,vars(),{'__builtins__': None,'sin':np.sin,'cos':np.cos,'tan':np.tan,'exp':np.exp,'max':np.max,'min':np.min,'abs':np.abs})
 		self.cs_fun = cs.SXFunction('f',[cs.vertcat(varslist)],[self.cs_var])
