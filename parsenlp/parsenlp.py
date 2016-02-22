@@ -57,8 +57,8 @@ class Problem:
 				self.add_variable(expression)
 			
 			# add constraints to the constraint list
-			#for expression in problem['constraints']:
-			#	self.add_constraint(expression)
+			for expression in problem['constraints']:
+				self.add_constraint(expression)
 			
 			# set the objective
 			self.set_objective(problem['objective'])
@@ -94,7 +94,11 @@ class Problem:
 			upperbound = np.array(eval('[' + rhs + loop + ']'))
 				
 		# add the variable to the problem
-		self.variables.append( Variable(self,name,len(indexvalue),lowerbound,upperbound) )
+		length = len(indexvalue)
+		if length == 0:
+			length = 1
+			
+		self.variables.append( Variable(self,name,length,lowerbound,upperbound) )
 		
 	def add_parameter(self,expression):
 		"""
@@ -154,12 +158,8 @@ class Problem:
 		
 		self.objective = Function(self,expression)
 		
-	def count_variables(self):
-		val = 0;
-		for var in self.variables:
-			val += len(var.index)
-			
-		return val
+	def count_variables(self):		
+		return sum( [ var.length for var in self.variables] )
 	
 	# callbacks
 	def gradient(self,x):
@@ -423,6 +423,7 @@ class Function:
 			varslist.append(var.cs_var)
 			locals()[var.expression] = var.cs_var
 			
+
 		self.cs_var = eval(self.expression,vars(),{'__builtins__': None})
 		self.cs_fun = cs.SXFunction('f',[cs.vertcat(varslist)],[self.cs_var])
 		
@@ -432,7 +433,8 @@ class Function:
 		self.cs_hessian = cs.hessian(self.cs_var,cs.vertcat(varslist))
 		self.cs_hessian_fun = cs.SXFunction('h',[cs.vertcat(varslist)],self.cs_hessian)
 		
-	
+		self.nonzero_gradient_columns = self.get_nonzero_gradient_columns()
+		
 	def get_nonzero_gradient_columns(self):
 	
 		n = self.problem.count_variables()
