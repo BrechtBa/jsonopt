@@ -186,7 +186,22 @@ class Problem:
 
 		return np.array(result,dtype=np.float)
 
-	def jacobian(self,x,flag):
+	def jacobian(self,x):
+		"""
+		computes the constraint jacobian matrix
+		
+		Arguments:
+		x:     list or numpy array of values with length equal to the number of variables
+		"""
+		
+		result = []
+		for c in self.constraints:
+			result.append( c.gradient(x) )
+
+		return np.array(result,dtype=np.float)
+	
+	
+	def jacobian_sparse(self,x,flag):
 		"""
 		computes the constraint jacobian matrix in the sparse form ipopt requires
 		
@@ -450,10 +465,10 @@ class Function:
 		return col
 	
 	def value(self,x):
-		return self.cs_fun([x])[0].toArray()
+		return self.cs_fun([x])[0].toArray()[0,0]
 		
 	def gradient(self,x):
-		return self.cs_gradient_fun([x])[0].toArray()
+		return self.cs_gradient_fun([x])[0].toArray()[:,0]
 		
 	def hessian(self,x):
 		return self.cs_hessian_fun([x])[0].toArray()
