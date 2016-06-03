@@ -61,5 +61,16 @@ class TestProblemDefinition(unittest.TestCase):
 		problem.add_variable('Reals x[i,j,k] = sum(a+b for a in range(i+2) for b in range(j+2)) for i in range(2) for j in range(3) for k in range(4)')
 		self.assertEqual([problem.model.x[i,j,k].value for i in range(2) for j in range(3) for k in range(4)],[sum(a+b for a in range(i+2) for b in range(j+2)) for i in range(2) for j in range(3) for k in range(4)])
 		
+	def test_add_parameter(self):
+		problem = jsonopt.Problem()
+		problem.add_parameter('A=5')
+		self.assertEqual(len(problem.model.A),1)
+		
+	def test_add_parameter_array(self):
+		problem = jsonopt.Problem()
+		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+		self.assertEqual([problem.model.p[i,j] for i in range(24) for j in range(5)] ,[0.20 if j==0 else 0.30 for i in range(24) for j in range(5)])
+
+		
 if __name__ == '__main__':
 	unittest.main()

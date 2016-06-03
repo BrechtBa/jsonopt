@@ -91,23 +91,8 @@ class Problem:
 		
 		restexpression = ' '.join(splitexpression[1:])
 		
-		# check if there is a 'for' statement and parse it
-		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(restexpression)
-		
-		# check if the content contains an initial value
-		(lhs,rhs,type) = self._parse_equation(content)
-		
-		# parse the variable name by removing brackets
-		name,varindexlist = self._parse_indexed_expression(lhs)
-			
-		# parse the initial value
-		initial = []
-		if rhs.lstrip().rstrip() != '':
-			if len(indexvalue)==0:
-				initial = eval(rhs)
-			else:
-				initial = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
-		
+		# parse the rest of the expression
+		(name,indexvalue,initial) = self._parse_variable_or_parameter(restexpression)
 		
 		# add the variable
 		if len(indexvalue)==0:
@@ -126,9 +111,63 @@ class Problem:
 		
 	def add_parameter(self,expression):
 		"""
-		alias of add_variable, parameters are treated as variables with equal lower and upper bound
+		Adds a parameter to the problem from a string expression
+		
+		Parameters:
+			expression: string, variable name expression in python code with a value
+			
+		Example:
+			problem = jsonipopt.Problem()
+			problem.add_parameter('A = 5')
+			problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
 		"""
-		self.add_variable(expression)
+		
+		# parse the rest of the expression
+		(name,indexvalue,value) = self._parse_variable_or_parameter(expression)
+		
+		if value == []:
+			raise ValueError('Parameters are required to have a value. {}'.format(expression))
+		
+		# add the parameter
+		if len(indexvalue)==0:
+			setattr(self.model, name, pm.Param(default=value))
+		else:
+			setattr(self.model, name, pm.Param(indexvalue,default=lambda model,*args: value[args]))
+		self.parameters.append(getattr(self.model, name))
+		
+		
+	def _parse_variable_or_parameter(self,expression):	
+		"""
+		parses a variable or parameters into the required 
+		
+		Parameters:
+			expression: string
+			
+		Returns:
+			name: 			string
+			indexvalue: 	list
+			value: 			list
+		"""
+
+		# check if there is a 'for' statement and parse it
+		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(expression)
+		
+		# check if the content contains a value
+		(lhs,rhs,type) = self._parse_equation(content)
+		
+		# parse the variable name by removing brackets
+		name,varindexlist = self._parse_indexed_expression(lhs)
+			
+		# parse the value
+		value = []
+		if rhs.lstrip().rstrip() != '':
+			if len(indexvalue)==0:
+				value = eval(rhs)
+			else:
+				value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
+		
+		
+		return (name,indexvalue,value)
 		
 		
 	def add_constraint(self,expression):		
