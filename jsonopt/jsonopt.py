@@ -1,43 +1,46 @@
-#!/usr/bin/python3
-
-#    This file is part of parsenlp.
+#!/usr/bin/env/ python
+################################################################################
+#    Copyright 2016 Brecht Baeten
+#    This file is part of jsonopt.
 #
-#    parsenlp is free software: you can redistribute it and/or modify
+#    jsonopt is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    parsenlp is distributed in the hope that it will be useful,
+#    jsonopt is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
+#    along with jsonopt.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
 
+from __future__ import division
 import json
 import numpy as np
-import ad
-from ad.admath import *
+import pyomo.environ as pm
+import pyomo.core.base.set_types
 import re
 
-try:
-	import pyipopt
-except:
-	print('Warning: pyipopt not found, defined problems can not be solved using json2ipopt.Problem.solve(), try installing pyipopt from https://github.com/xuy/pyipopt')
-	print('')
-	
-	
+
 class Problem:
 	"""
 	Class for defining a non-linear program
 	"""
+	
+	validDomainExpressions = [v for v in dir(pyomo.core.base.set_types) if v[0].isupper()]
+	
 	def __init__(self,jsonstring=None):
 		"""
 		create an optimization problem from a jsonstring
-		Arguments:
-		jsonstring:		nlp definition in json format
+		
+		Parameters:
+			jsonstring:		nlp definition in json format
 		"""
+		
+		self.model = pm.ConcreteModel()
 		
 		self.variables = []
 		self.parameters = []
@@ -64,38 +67,62 @@ class Problem:
 			# set the objective
 			self.set_objective(problem['objective'])
 				
+				
 	def add_variable(self,expression):
 		"""
 		Adds a variable to the problem from a string expression
-		Arguments:
-		expression: string, variable name expression in python code with optional default value
+		
+		Parameters:
+			expression: string, variable name expression in python code with optional default value
+			
 		Example:
-		nlp = parseipopt.problem()
-		nlp.add_variable('T[j] for j in range(25)')
-		nlp.add_variable('p[j] = 0.20 for j in range(24)')
+			problem = jsonipopt.Problem()
+			problem.add_variable('Reals x[j] for j in range(25)')
+			problem.add_variable('Reals p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
 		"""
 		
-		content,loop,indexlist,indexvalue = _parse_for_array_creation(expression)
-		
-		(lhs,rhs,eq) = _parse_equation(content)
-		
-		bracket = lhs.find('[')
-		if bracket > -1:
-			name = lhs[:bracket]
+		# get the domain of the variable
+		splitexpression = expression.split(' ')
+		domainexpr = splitexpression[0]
+		if domainexpr in self.validDomainExpressions:
+			domain = eval('pm.'+domainexpr)
 		else:
-			name = lhs
+			raise ValueError('The domain {} is not a valid domain. Valid domains are:\n{}'.format(domainexpr,self.validDomainExpressions))
+		
+		restexpression = ' '.join(splitexpression[1:])
+		
+		# check if there is a 'for' statement and parse it
+		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(restexpression)
+		
+		# check if the content contains an initial value
+		(lhs,rhs,type) = self._parse_equation(content)
+		
+		# parse the variable name by removing brackets
+		name,varindexlist = self._parse_indexed_expression(lhs)
 			
-		name = name.lstrip().rstrip()
+		# parse the initial value
+		initial = []
+		if rhs.lstrip().rstrip() != '':
+			if len(indexvalue)==0:
+				initial = eval(rhs)
+			else:
+				initial = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
 		
-		if rhs == '':
-			lowerbound = []
-			upperbound = []
+		
+		# add the variable
+		if len(indexvalue)==0:
+			if initial == []:
+				setattr(self.model, name, pm.Var(domain=domain))
+			else:
+				setattr(self.model, name, pm.Var(domain=domain,initialize=initial))
 		else:
-			lowerbound = np.array(eval('[' + rhs + loop + ']'))
-			upperbound = np.array(eval('[' + rhs + loop + ']'))
-				
-		# add the variable to the problem
-		self.variables.append( Variable(self,name,indexvalue,lowerbound,upperbound) )
+			if initial == []:
+				setattr(self.model, name, pm.Var(indexvalue,domain=domain))
+			else:
+				setattr(self.model, name, pm.Var(indexvalue,domain=domain,initialize=lambda model,*args: initial[args]))
+		self.variables.append(getattr(self.model, name))
+		
+
 		
 	def add_parameter(self,expression):
 		"""
@@ -162,75 +189,7 @@ class Problem:
 			
 		return val
 	
-	# callbacks
-	def gradient(self,x):
-		"""
-		computes the objective function gradient
-		
-		Arguments:
-		x:  list or numpy array of values with length equal to the number of variables
-		"""
-
-		return self.objective.gradient(x);
-
-	def constraint(self,x):
-		"""
-		computes all constraint functions values
-		
-		Arguments:
-		x:  list or numpy array of values with length equal to the number of variables
-		"""
-		
-		result = []
-		for c in self.constraints:
-			result.append( c(x) )
-
-		return np.array(result,dtype=np.float)
-
-	def jacobian(self,x,flag):
-		"""
-		computes the constraint jacobian matrix in the sparse form ipopt requires
-		
-		Arguments:
-		x:     list or numpy array of values with length equal to the number of variables
-		flag:  boolean, when True the rows and columns of all non zero entries are returned when False the values of these elements are returned
-		"""
-		
-		if flag:
-			x_temp1 = np.random.random(len(x))
-			x_temp2 = np.random.random(len(x))
-			row = []
-			col = []
-			
-			for i,c in enumerate(self.constraints):
-				for j in c.nonzero_gradient_columns:
-					row.append(i)
-					col.append(j)
-
-			return (np.array(row),np.array(col))
-			
-		else:
-			val = []
-			for i,c in enumerate(self.constraints):
-				grad = c.gradient(x)
-				for j in c.nonzero_gradient_columns:
-					val.append(grad[j])
-
-			return np.array(val,dtype=np.float)
-
-
-	# get and set functions
-	def get_values(self):
-		"""
-		returns the values of all variables. These are initial values if the problem is not solved yet and the solution after problem.solve() is called
-		"""
-		
-		values = np.array([])
-		for v in self.variables:
-			values = np.append(values,v.value)
-			
-		return values
-		
+	
 	def set_values(self,x):
 		"""
 		sets the values of all variables, these will be used as initial values in a subsequent call to problem.solve()
@@ -264,52 +223,6 @@ class Problem:
 		for var in self.variables:
 			var.value = d[var.expression]
 	
-	
-	def get_variable_lowerbounds(self):
-		"""
-		returns the lower bounds of all variables
-		"""
-		
-		values = np.array([])
-		for v in self.variables:
-			values = np.append(values,v.lowerbound)
-		
-		return values
-
-	def get_variable_upperbounds(self):
-		"""
-		returns the upper bounds of all variables
-		"""
-		
-		values = np.array([])
-		for v in self.variables:
-			values = np.append(values,v.upperbound)
-		
-		return values
-
-	def get_constraint_lowerbounds(self):
-		"""
-		returns the lower bounds of all constraints
-		"""
-		
-		values = np.array([])
-		for c in self.constraints:
-			values = np.append(values,c.lowerbound)
-		
-		return values
-
-	def get_constraint_upperbounds(self):
-		"""
-		returns the upper bounds of all constraints
-		"""
-		
-		values = np.array([])
-		for c in self.constraints:
-			values = np.append(values,c.upperbound)
-		
-		return values
-
-			
 	# solve the problem using pyipopt
 	def solve(self,x0=[]):
 		"""
@@ -342,6 +255,168 @@ class Problem:
 			
 		except:
 			raise Exception('pyipopt not found. You can try solving the problem using another solver using the parsenlp.Problem.objective, parsenlp.Problem.gradient, parsenlp.Problem.constraint, parsenlp.Problem.jacobian functions')
+		
+		
+
+	def _parse_for_array_creation(self,expression):
+		"""
+		look for an array creating " for " keyword in a string
+		
+		some logic needs to be added to avoid returning " for " in a sum
+		"""
+		
+		loop = []
+		indexlist = []
+		indexvalue = []
+		
+		# find (  ) statements
+		bracepos = self._parse_matching_braces(expression,['(',')'])
+		
+		# find 'for  in' statements
+		forpos = [p.start(0) for p in re.finditer('for .*? in ',expression)]
+		
+		# check if the for loop is inside braces and ignore it if so
+		tempforpos = []
+		for p in forpos:
+			add = True
+			for b in bracepos:
+				if b[0] <= p and p <= b[1]:
+					add = False
+					break
+			if add:
+				tempforpos.append(p)
+		
+		forpos = tempforpos
+		
+		
+		# split the expression
+		if len(forpos) < 1:
+			content = expression.rstrip().lstrip()
+		else:
+			content = expression[:forpos[0]].rstrip().lstrip()
+			
+			for p in forpos[::-1]:
+				curloop = expression[p:].rstrip().lstrip()
+				loop.append( curloop )
+				
+				curindex = re.findall('for (.*?) in', curloop)[0].rstrip().lstrip()
+				indexlist.append( curindex )
+				
+				#indexvalue.append( eval( '['+ curindex + ' ' + curloop +']') )
+			
+				# remove the loop from the expression
+				expression = expression[:p]
+	
+			# reverse the lists
+			loop = loop[::-1]
+			indexlist = indexlist[::-1]
+			#indexvalue = indexvalue[::-1]
+			
+			# get the indexvalue
+			indexvalue = eval( '[('+ ','.join(indexlist) + ')' + ' '.join(loop) +']')
+				
+		return content,loop,indexlist,indexvalue
+		
+	def _parse_indexed_expression(self,expression):
+		"""
+		parse and indexed expression into the variable and a list of indices
+		
+		Parameters:
+			expression:		string, the expression
+			
+		Returns:
+			variable: 		string, the variable which is indexed
+			indexlist:		list, a list of index strings
+		"""
+		
+		left_bracket = expression.find('[')
+		right_bracket = expression.find(']')
+		if left_bracket > -1:
+			variable = expression[:left_bracket].lstrip().rstrip()
+			indexlist = [i.lstrip().rstrip() for i in expression[left_bracket+1:right_bracket].split(',')]
+		else:
+			variable = expression.lstrip().rstrip()
+			indexlist = []
+		
+		return (variable,indexlist)
+	
+		
+	def _parse_equation(self,expression):
+		eqpos = expression.find('=')
+		gepos = expression.find('>=')
+		lepos = expression.find('<=')
+		
+		if gepos > 0:
+			lhs = expression[:gepos]
+			rhs = expression[gepos+2:]
+			type = 'G'
+		elif lepos > 0:
+			lhs = expression[:lepos]
+			rhs = expression[lepos+2:]
+			type = 'L'
+		elif eqpos > 0:
+			lhs = expression[:eqpos]
+			rhs = expression[eqpos+1:]
+			type = 'E'
+		else:
+			lhs = expression
+			rhs = ''
+			type = ''
+			
+		return (lhs,rhs,type)	
+		
+		
+	def _parse_matching_braces(self,expression,braces):
+		"""
+		finds the matching braces or brackets in a string
+		
+		Parameters:
+			expression: 	string, the expression to find braces in
+			braces: 		list with 2 strings, starting and ending brace
+		
+		Returns:
+			pairs:			list, with pairs lists
+		"""
+		
+		openpos = [p.start(0) for p in re.finditer(re.escape(braces[0]),expression)]
+		closepos = [p.start(0) for p in re.finditer(re.escape(braces[1]),expression)]
+		
+		openclosepos = [p.start(0) for p in re.finditer(re.escape(braces[0])+'|'+re.escape(braces[1]),expression)]
+		
+		pairs = []
+		for i,o in enumerate(openclosepos):
+			if o in openpos:
+				num_open = 0
+				num_close = 0
+				
+				for c in openclosepos[i:]:
+					if c in openpos:
+						num_open = num_open+1
+					if c in closepos:
+						num_close = num_close+1
+						
+					if num_open == num_close:
+						pairs.append([o,c])
+						break
+		
+		return pairs
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
 		
 		
 
@@ -556,26 +631,4 @@ def _parse_for_array_creation(expression):
 	return content,loop,indexlist,indexvalue
 	
 	
-def _parse_equation(expression):
-	eqpos = expression.find('=')
-	gepos = expression.find('>=')
-	lepos = expression.find('<=')
-	
-	if gepos > 0:
-		lhs = expression[:gepos]
-		rhs = expression[gepos+2:]
-		type = 'G'
-	elif lepos > 0:
-		lhs = expression[:lepos]
-		rhs = expression[lepos+2:]
-		type = 'L'
-	elif eqpos > 0:
-		lhs = expression[:eqpos]
-		rhs = expression[eqpos+1:]
-		type = 'E'
-	else:
-		lhs = expression
-		rhs = ''
-		type = ''
-		
-	return (lhs,rhs,type)
+

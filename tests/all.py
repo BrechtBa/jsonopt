@@ -17,10 +17,9 @@
 #    along with jsonopt.  If not, see <http://www.gnu.org/licenses/>.
 ################################################################################
 
-try:
-	from jsonopt.jsonopt import *
-	
-except:
-	# python2 compatibility
-	from jsonopt import *
+import unittest
 
+from string_parsing import *
+from problem_definition import *
+
+unittest.main()
