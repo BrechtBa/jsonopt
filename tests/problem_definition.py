@@ -69,6 +69,7 @@ class TestProblemDefinition(unittest.TestCase):
 	def test_add_parameter_array(self):
 		problem = jsonopt.Problem()
 		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+		
 		self.assertEqual([problem.model.p[i,j] for i in range(24) for j in range(5)] ,[0.20 if j==0 else 0.30 for i in range(24) for j in range(5)])
 
 	def test_add_constraint(self):
