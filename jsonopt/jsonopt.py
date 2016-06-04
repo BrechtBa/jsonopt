@@ -238,6 +238,32 @@ class Problem:
 			
 		return var
 		
+	def set_value(self,name,value):
+		"""
+		sets the value of a variable or parameter
+		
+		Parameters:
+			name:		string, the variable name, this can be an indexed string
+			value:		number, the value of the variable
+		
+		Example:
+			problem.set_value('A',1)
+			problem.set_value('x[3]',1)
+		"""
+		
+		# check if the name is an indexed string
+		(varname,indexlist) = self._parse_indexed_expression(name)
+		var = self.get_variable(varname)
+		
+		if len(indexlist)==0:
+			var.set_value(value)
+		else:
+			try:
+				var[eval('(' + ','.join(indexlist) + ',)')].set_value(value)
+			except:
+				var[eval('(' + ','.join(indexlist) + ',)')].value = value
+
+				
 	def get_value(self,name):
 		"""
 		gets the value of a variable or parameter
@@ -274,31 +300,14 @@ class Problem:
 					value[key] = var[key]
 				
 			return value
-	
-	def set_value(self,name,value):
+	def get_json_value(self,name):
 		"""
-		sets the value of a variable or parameter
-		
-		Parameters:
-			name:		string, the variable name, this can be an indexed string
-			value:		number, the value of the variable
-		
-		Example:
-			problem.set_value('A',1)
-			problem.set_value('x[3]',1)
 		"""
-		
-		# check if the name is an indexed string
-		(varname,indexlist) = self._parse_indexed_expression(name)
-		var = self.get_variable(varname)
-		
-		if len(indexlist)==0:
-			var.set_value(value)
-		else:
-			try:
-				var[eval('(' + ','.join(indexlist) + ',)')].set_value(value)
-			except:
-				var[eval('(' + ','.join(indexlist) + ',)')].value = value
+		value = self.get_value(name)
+		if type(value).__module__ == np.__name__:
+			value = value.tolist()
+				
+		return json.dumps(value)
 	
 	def get_values(self):
 		"""
@@ -312,6 +321,18 @@ class Problem:
 			values[key] = self.get_value(key)
 			
 		return values
+	
+	def get_json_values(self):
+		"""
+		"""
+		values = self.get_values()
+		
+		# convert arrays to lists
+		for key in values:
+			if type(values[key]).__module__ == np.__name__:
+				values[key] = values[key].tolist()
+				
+		return json.dumps(values)
 	
 	
 	def __getitem__(self,name):

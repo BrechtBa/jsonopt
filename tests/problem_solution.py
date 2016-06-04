@@ -77,6 +77,21 @@ class TestProblemSolution(unittest.TestCase):
 		self.assertEqual(values['D'],5)
 		self.assertLess(maxdelta,1e-3)
 		
+	def test_get_json_values(self):	
+		with open('..//examples//json//hs071.json', 'r') as myfile:
+			jsonstring=myfile.read()
+			
+		best_known_x = np.array([0.99999999,  5.00000005,  1.44948976,  3.44948967])
+			
+		problem = jsonopt.Problem(jsonstring=jsonstring)
+		problem.solve(verbosity=0)
+		
+		try:
+			jsonsolution = problem.get_json_values()
+		except:
+			self.fail("could not retrieve json solution")
+		
+		
 	def test_getitem(self):
 		problem = jsonopt.Problem()
 		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
