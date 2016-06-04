@@ -12,7 +12,7 @@ Installation
 Prequisites
 ^^^^^^^^^^^
 * numpy: `<http://www.numpy.org/>`_
-* pyomo: `<http://pythonhosted.org/ad/index.html/>`_
+* pyomo: `<http://www.pyomo.org/>`_
 * an optimization solver: 
    `ipopt <https://projects.coin-or.org/Ipopt>`_, `glpk <https://www.gnu.org/software/glpk/>`_, `IBM CPLEX <https://www-01.ibm.com/software/commerce/optimization/cplex-optimizer/>`_,...
 
