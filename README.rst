@@ -18,7 +18,7 @@ Prequisites
 
 Setup
 ^^^^^
-* download the latest `release <https://github.com/jsonopt/releases>`_
+* download the latest `release <https://github.com/BrechtBa/jsonopt/releases>`_
 * unzip and cd to the folder
 * run ``python setup.py install``
 
