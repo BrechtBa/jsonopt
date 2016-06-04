@@ -19,8 +19,18 @@
 
 import unittest
 
-from string_parsing import *
-from problem_definition import *
-from problem_solution import *
+import jsonopt
 
-unittest.main()
+class TestProblemSolution(unittest.TestCase):
+
+	
+	def test_default(self):
+		with open('..//examples//json//hs071.json', 'r') as myfile:
+			jsonstring=myfile.read()
+			
+		problem = jsonopt.Problem(jsonstring=jsonstring)
+		problem.solve()
+		
+		
+if __name__ == '__main__':
+	unittest.main()

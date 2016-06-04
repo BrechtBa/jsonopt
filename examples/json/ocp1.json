@@ -1,9 +1,9 @@
 {
 	"variables":[
-		"T[j] for j in range(25)",
-		"P[j] for j in range(24)",
-		"Q[j] for j in range(24)",
-		"COP[j] for j in range(24)"
+		"Reals T[j] for j in range(25)",
+		"Reals P[j] for j in range(24)",
+		"Reals Q[j] for j in range(24)",
+		"Reals COP[j] for j in range(24)"
 	],
 	"parameters": [
 		"dt = 3600",

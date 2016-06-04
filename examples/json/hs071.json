@@ -1,6 +1,6 @@
 {
 	"variables":[
-		"x[j] for j in range(4)"
+		"Reals x[j] for j in range(4)"
 	],
 	"parameters": [
 		"A = 25",

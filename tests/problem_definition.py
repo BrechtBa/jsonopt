@@ -71,6 +71,42 @@ class TestProblemDefinition(unittest.TestCase):
 		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
 		self.assertEqual([problem.model.p[i,j] for i in range(24) for j in range(5)] ,[0.20 if j==0 else 0.30 for i in range(24) for j in range(5)])
 
+	def test_add_constraint(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals x[j] for j in range(25)')
+		problem.add_parameter('A = 5')
+		problem.add_constraint('x[24] >= A')
+		
+	def test_add_constraint_array(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals T[j] for j in range(25)')
+		problem.add_parameter('Ta[j] = 5 for j in range(25)')
+		problem.add_constraint('1000*(T[j+1]-T[j])/10 = 20*(T[j]-Ta[j]) for j in range(24)')
+		
+	def test_add_constraint_ndarray(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals T[j,k] for j in range(25) for k in range(2)')
+		problem.add_parameter('Ta[j] = 5 for j in range(25)')
+		problem.add_constraint('1000*(T[j+1,k]-T[j,k])/10 = 20*(T[j,k]-Ta[j]) for j in range(24) for k in range(2)')
+	
+	def test_add_objective(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals x[j] for j in range(25)')
+		problem.add_parameter('A = 5')
+		problem.set_objective('x[24]')
+	
+	def test_add_objective_sum(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals x[j] for j in range(25)')
+		problem.add_parameter('A = 5')
+		problem.set_objective('sum(x[i] for i in range(25))')
+	
+	def test_jsonstring(self):
+		with open('..//examples//json//hs071.json', 'r') as myfile:
+			jsonstring=myfile.read()
+			
+		problem = jsonopt.Problem(jsonstring=jsonstring)
+		
 		
 if __name__ == '__main__':
 	unittest.main()

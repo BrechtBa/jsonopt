@@ -42,9 +42,9 @@ class Problem:
 		
 		self.model = pm.ConcreteModel()
 		
-		self.variables = []
-		self.parameters = []
-		self.constraints = []
+		self.variables = {}
+		self.parameters = {}
+		self.constraints = {}
 		self.objective = None
 		
 		
@@ -58,7 +58,7 @@ class Problem:
 			
 			# add parameters to the variables list
 			for expression in problem['parameters']:
-				self.add_variable(expression)
+				self.add_parameter(expression)
 			
 			# add constraints to the constraint list
 			for expression in problem['constraints']:
@@ -105,9 +105,9 @@ class Problem:
 				setattr(self.model, name, pm.Var(indexvalue,domain=domain))
 			else:
 				setattr(self.model, name, pm.Var(indexvalue,domain=domain,initialize=lambda model,*args: initial[args]))
-		self.variables.append(getattr(self.model, name))
 		
-
+		self.variables[name] = getattr(self.model, name)
+		
 		
 	def add_parameter(self,expression):
 		"""
@@ -117,7 +117,6 @@ class Problem:
 			expression: string, variable name expression in python code with a value
 			
 		Example:
-			problem = jsonipopt.Problem()
 			problem.add_parameter('A = 5')
 			problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
 		"""
@@ -133,100 +132,99 @@ class Problem:
 			setattr(self.model, name, pm.Param(default=value))
 		else:
 			setattr(self.model, name, pm.Param(indexvalue,default=lambda model,*args: value[args]))
-		self.parameters.append(getattr(self.model, name))
+		
+		self.parameters[name] = getattr(self.model, name)
 		
 		
-	def _parse_variable_or_parameter(self,expression):	
-		"""
-		parses a variable or parameters into the required 
 		
-		Parameters:
-			expression: string
-			
-		Returns:
-			name: 			string
-			indexvalue: 	list
-			value: 			list
-		"""
-
-		# check if there is a 'for' statement and parse it
-		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(expression)
-		
-		# check if the content contains a value
-		(lhs,rhs,type) = self._parse_equation(content)
-		
-		# parse the variable name by removing brackets
-		name,varindexlist = self._parse_indexed_expression(lhs)
-			
-		# parse the value
-		value = []
-		if rhs.lstrip().rstrip() != '':
-			if len(indexvalue)==0:
-				value = eval(rhs)
-			else:
-				value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
-		
-		
-		return (name,indexvalue,value)
-		
-		
-	def add_constraint(self,expression):		
+	def add_constraint(self,expression,name=None):		
 		"""
 		Adds a constraint to the problem from a string expression
-		Arguments:
-		expression: string, equation or inequality expression in python code
+		
+		Parameters:
+			expression: string, equation or inequality expression in python code
+			
 		Example:
-		nlp = parseipopt.problem()
-		nlp.add_constraint('C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)')
-		nlp.add_constraint('Tmin <= T[j] for j in range(24)')
+			problem.add_constraint('C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)')
+			problem.add_constraint('Tmin <= T[j] for j in range(24)')
 		"""	
 		
-		content,loop,indexlist,indexvalue = _parse_for_array_creation(expression)
+		content,loop,indexlist,indexvalue = self._parse_for_array_creation(expression)
 		
-		(lhs,rhs,type) = _parse_equation(content)
+		# parse the equation type
+		(lhs,rhs,type) = self._parse_equation(content)
 
-		if type == '':
-				raise Exception('A constraint must contain an "=", "<=" or ">=" operator: ',expr)
-
-		if len(indexlist) > 0:
-			index = indexlist[0];
-			for val in indexvalue:
-				expression = lhs+'-('+rhs+')'
-				
-				expression = expression.replace( '['+index,'['+str(val) )
-				expression = expression.replace( '[ '+index,'[ '+str(val) )
-				expression = expression.replace( ','+index,','+str(val) )
-				expression = expression.replace( ', '+index,', '+str(val) )
-				
-				expression = expression.replace( index+']',str(val)+']' )
-				expression = expression.replace( index+' ]',str(val)+' ]' )
-				expression = expression.replace( index+',',str(val)+',' )
-				expression = expression.replace( index+' ,',str(val)+' ,' )
-
-				self.constraints.append( Constraint(self,expression,type) )
+		if type == 'E':
+			pmtype = '=='
+		elif type == 'G':
+			pmtype = '>='
+		elif type == 'L':
+			pmtype = '<='			
 		else:
-			expression = lhs+'-('+rhs+')'
+			raise Exception('A constraint must contain an "=", "<=" or ">=" operator: {}'.format(expression))
+		
+		# add self.model to all variables and parameter in the expression
+		pmexpression = lhs+pmtype+rhs
+		
+		# check the constraint name
+		if name==None:
+			name = 'unnamed_constraint{}'.format( len(self.constraints) )
+		
+		# create a vars dict
+		pmvars = dict(self.variables)
+		pmvars.update(self.parameters)
 
-			self.constraints.append( Constraint(self,expression,type) )
+		# add the constraint
+		if len(indexvalue)==0:
+			setattr(self.model, name, pm.Constraint(expr=eval(pmexpression,pmvars)))
+		else:
+			def rule(model,*args):
+				indexvars = {key:val for key,val in zip(indexlist,args)}
+				pmvars.update(indexvars)
+				return eval( pmexpression, pmvars )
 				
+			setattr(self.model, name, pm.Constraint(indexvalue,rule=rule))
+		
+		self.constraints[name] = getattr(self.model,name)
+		
 	def set_objective(self,expression):		
 		"""
 		sets the objective function of the problem from a string expression
-		Arguments:
-		expression: string, equation or inequality expression in python code
+		
+		Parameters:
+			expression: string, equation or inequality expression in python code
+			
 		Example:
-		nlp = parseipopt.problem()
-		nlp.set_objective('sum(p[j]*P[j] for j in range(24))')
+			problem.set_objective('sum(p[j]*P[j] for j in range(24))')
 		"""
 		
-		self.objective = Function(self,expression)
+		# create a vars dict
+		pmvars = dict(self.variables)
+		pmvars.update(self.parameters)
 		
-	def count_variables(self):
-		val = 0;
-		for var in self.variables:
-			val += len(var.index)
+		def rule(model,*args):
+			return eval( expression, pmvars )
+				
+		setattr(self.model, 'objective', pm.Objective(rule=rule))
+		self.objective = getattr(self.model,'objective')
+	
+	
+	def solve(self,solver='ipopt',solveroptions={},verbosity=1):
+		
+		# parse inputs
+		tee = False
+		if verbosity>0:
+			tee = True
 			
-		return val
+		optimizer = pm.SolverFactory(solver)
+		results = optimizer.solve(self.model,options=solveroptions,tee=tee)
+	
+	
+	#def __getitem__(self,name):
+	
+	
+	
+	
 	
 	
 	def set_values(self,x):
@@ -262,40 +260,40 @@ class Problem:
 		for var in self.variables:
 			var.value = d[var.expression]
 	
-	# solve the problem using pyipopt
-	def solve(self,x0=[]):
+	
+	
+	
+	def _parse_variable_or_parameter(self,expression):	
 		"""
-		solves the problem using ipopt. The solution is set to variable.value
+		parses a variable or parameters into the required 
 		
-		Arguments:
-		x0:  optional, list or numpy.array initial guess. If not supplied the current variable values will be used
-		"""
-		
-		if len(x0) == 0:
-			x0 = self.get_values()
-		try:
-			pyipoptproblem = pyipopt.create(len(self.get_values()),
-											self.get_variable_lowerbounds(),
-											self.get_variable_upperbounds(),
-											len(self.constraints),
-											self.get_constraint_lowerbounds(),
-											self.get_constraint_upperbounds(),
-											len(self.jacobian(x0,False)),
-											0,
-											self.objective,
-											self.gradient,
-											self.constraint,
-											self.jacobian)
-
-			x, zl, zu, constraint_multipliers, obj, status = pyipoptproblem.solve(x0)
-		
-			self.set_values(x)
-			pyipoptproblem.close()
+		Parameters:
+			expression: string
 			
-		except:
-			raise Exception('pyipopt not found. You can try solving the problem using another solver using the parsenlp.Problem.objective, parsenlp.Problem.gradient, parsenlp.Problem.constraint, parsenlp.Problem.jacobian functions')
+		Returns:
+			name: 			string
+			indexvalue: 	list
+			value: 			list
+		"""
+
+		# check if there is a 'for' statement and parse it
+		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(expression)
 		
+		# check if the content contains a value
+		(lhs,rhs,type) = self._parse_equation(content)
 		
+		# parse the variable name by removing brackets
+		name,varindexlist = self._parse_indexed_expression(lhs)
+			
+		# parse the value
+		value = []
+		if rhs.lstrip().rstrip() != '':
+			if len(indexvalue)==0:
+				value = eval(rhs)
+			else:
+				value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
+		
+		return (name,indexvalue,value)	
 
 	def _parse_for_array_creation(self,expression):
 		"""
