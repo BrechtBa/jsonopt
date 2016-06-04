@@ -129,9 +129,9 @@ class Problem:
 		
 		# add the parameter
 		if len(indexvalue)==0:
-			setattr(self.model, name, pm.Param(default=value))
+			setattr(self.model, name, pm.Param(default=value,mutable=True))
 		else:
-			setattr(self.model, name, pm.Param(indexvalue,default=lambda model,*args: value[args]))
+			setattr(self.model, name, pm.Param(indexvalue,default=lambda model,*args: value[args],mutable=True))
 		
 		self.parameters[name] = getattr(self.model, name)
 		
@@ -222,6 +222,22 @@ class Problem:
 		optimizer = pm.SolverFactory(solver)
 		results = optimizer.solve(self.model,options=solveroptions,tee=tee)
 	
+	def get_variable(self,name):
+		"""
+		gets a variable
+		
+		Parameters:
+			name:		string
+		"""
+		if name in self.variables:
+			var = self.variables[name]
+		elif name in self.parameters:
+			var = self.parameters[name]
+		else:
+			raise KeyError('{} is not a variable or parameter'.format(name))
+			
+		return var
+		
 	def get_value(self,name):
 		"""
 		gets the value of a variable or parameter
@@ -230,12 +246,7 @@ class Problem:
 			name:		string
 		"""
 		
-		if name in self.variables:
-			var = self.variables[name]
-		elif name in self.parameters:
-			var = self.parameters[name]
-		else:
-			raise KeyError('{} is not a variable or parameter'.format(name))
+		var = self.get_variable(name)
 	
 		if len(var)==1:
 			return var.value
@@ -269,12 +280,25 @@ class Problem:
 		sets the value of a variable or parameter
 		
 		Parameters:
-			name:		string
-			value:		number, list, numpy.array
+			name:		string, the variable name, this can be an indexed string
+			value:		number, the value of the variable
 		
 		Example:
-			
+			problem.set_value('A',1)
+			problem.set_value('x[3]',1)
 		"""
+		
+		# check if the name is an indexed string
+		(varname,indexlist) = self._parse_indexed_expression(name)
+		var = self.get_variable(varname)
+		
+		if len(indexlist)==0:
+			var.set_value(value)
+		else:
+			try:
+				var[eval('(' + ','.join(indexlist) + ',)')].set_value(value)
+			except:
+				var[eval('(' + ','.join(indexlist) + ',)')].value = value
 	
 	def get_values(self):
 		"""
@@ -400,6 +424,10 @@ class Problem:
 		Returns:
 			variable: 		string, the variable which is indexed
 			indexlist:		list, a list of index strings
+			
+		Example:
+			problem._parse_indexed_expression('x[i,j]')
+			problem._parse_indexed_expression('x[1,2]')
 		"""
 		
 		left_bracket = expression.find('[')

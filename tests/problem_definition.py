@@ -107,6 +107,30 @@ class TestProblemDefinition(unittest.TestCase):
 			jsonstring=myfile.read()
 			
 		problem = jsonopt.Problem(jsonstring=jsonstring)
+	
+	def test_set_value(self):
+		problem = jsonopt.Problem()
+		problem.add_parameter('A = 5')
+		problem.set_value('A',1)
+		
+		self.assertEqual(problem.model.A ,1)
+
+		
+	def test_set_value_indexed(self):
+		problem = jsonopt.Problem()
+		problem.add_variable('Reals x[j] for j in range(25)')
+		problem.set_value('x[3]',1)
+		
+		self.assertEqual(problem.model.x[3] ,1)
+		
+	def test_set_value_ndindexed(self):
+		problem = jsonopt.Problem()
+		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+		problem.set_value('p[1,1]',1)
+		
+		self.assertEqual(problem.model.p[1,1] ,1)
+		
+		
 		
 		
 if __name__ == '__main__':
