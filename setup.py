@@ -14,9 +14,9 @@ author_email='brecht.baeten@gmail.com'
 packages=['jsonopt']
 install_requires=['numpy','pyomo']
 classifiers = ['Programming Language :: Python :: 2.7']
-version = '0.1.0'
+version = '0.1.1'
 
-changelog = '* using pyomo for parsing the optimization problem'
+changelog = '* readme fixes'
 
 ################################################################################
 # do not edit
