@@ -19,10 +19,12 @@
 
 from __future__ import division
 import json
+import re
+
 import numpy as np
+
 import pyomo.environ as pm
 import pyomo.core.base.set_types
-import re
 
 
 class Problem:
