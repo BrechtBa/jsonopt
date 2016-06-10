@@ -26,6 +26,8 @@ import numpy as np
 import pyomo.environ as pm
 import pyomo.core.base.set_types
 
+import parse
+import util
 
 class Problem:
 	"""
@@ -94,7 +96,7 @@ class Problem:
 		restexpression = ' '.join(splitexpression[1:])
 		
 		# parse the rest of the expression
-		(name,indexvalue,initial) = self._parse_variable_or_parameter(restexpression)
+		(name,indexvalue,initial) = parse.variable(restexpression)
 		
 		# add the variable
 		if len(indexvalue)==0:
@@ -124,7 +126,7 @@ class Problem:
 		"""
 		
 		# parse the rest of the expression
-		(name,indexvalue,value) = self._parse_variable_or_parameter(expression)
+		(name,indexvalue,value) = parse.variable(expression)
 		
 		if value == []:
 			raise ValueError('Parameters are required to have a value. {}'.format(expression))
@@ -151,10 +153,10 @@ class Problem:
 			problem.add_constraint('Tmin <= T[j] for j in range(24)')
 		"""	
 		
-		content,loop,indexlist,indexvalue = self._parse_for_array_creation(expression)
+		content,loop,indexlist,indexvalue = parse.for_array_creation(expression)
 		
 		# parse the equation type
-		(lhs,rhs,type) = self._parse_equation(content)
+		(lhs,rhs,type) = parse.equation(content)
 
 		if type == 'E':
 			pmtype = '=='
@@ -175,7 +177,8 @@ class Problem:
 		# create a vars dict
 		pmvars = dict(self.variables)
 		pmvars.update(self.parameters)
-
+		pmvars.update(util.specialfunctions)
+		
 		# add the constraint
 		if len(indexvalue)==0:
 			setattr(self.model, name, pm.Constraint(expr=eval(pmexpression,pmvars)))
@@ -203,6 +206,7 @@ class Problem:
 		# create a vars dict
 		pmvars = dict(self.variables)
 		pmvars.update(self.parameters)
+		pmvars.update(util.specialfunctions)
 		
 		def rule(model,*args):
 			return eval( expression, pmvars )
@@ -214,6 +218,7 @@ class Problem:
 	def solve(self,solver='ipopt',solveroptions={},verbosity=1):
 		"""
 		solves the problem
+			
 		"""
 		
 		# parse inputs
@@ -235,8 +240,10 @@ class Problem:
 			var = self.variables[name]
 		elif name in self.parameters:
 			var = self.parameters[name]
+		elif name == 'objective':
+			var = self.objective
 		else:
-			raise KeyError('{} is not a variable or parameter'.format(name))
+			raise KeyError('{} is not a variable or parameter or the objective'.format(name))
 			
 		return var
 		
@@ -254,7 +261,7 @@ class Problem:
 		"""
 		
 		# check if the name is an indexed string
-		(varname,indexlist) = self._parse_indexed_expression(name)
+		(varname,indexlist) = parse.indexed_expression(name)
 		var = self.get_variable(varname)
 		
 		if len(indexlist)==0:
@@ -277,7 +284,10 @@ class Problem:
 		var = self.get_variable(name)
 	
 		if len(var)==1:
-			return var.value
+			if var.__class__.__name__== 'SimpleObjective':
+				return var.expr()
+			else:
+				return var.value
 		else:
 			dim = var.keys()[0]
 			if isinstance( dim, int ):
@@ -302,6 +312,8 @@ class Problem:
 					value[key] = var[key]
 				
 			return value
+			
+			
 	def get_json_value(self,name):
 		"""
 		"""
@@ -321,7 +333,9 @@ class Problem:
 		
 		for key in self.parameters:
 			values[key] = self.get_value(key)
-			
+		
+		values['objective'] = self.get_value('objective')
+		
 		return values
 	
 	def get_json_values(self):
@@ -343,185 +357,3 @@ class Problem:
 	def __getattr__(self,name):
 		return self.get_value(name)
 	
-
-	
-	
-	def _parse_variable_or_parameter(self,expression):	
-		"""
-		parses a variable or parameters into the required 
-		
-		Parameters:
-			expression: string
-			
-		Returns:
-			name: 			string
-			indexvalue: 	list
-			value: 			list
-		"""
-
-		# check if there is a 'for' statement and parse it
-		(content,loop,indexlist,indexvalue) = self._parse_for_array_creation(expression)
-		
-		# check if the content contains a value
-		(lhs,rhs,type) = self._parse_equation(content)
-		
-		# parse the variable name by removing brackets
-		name,varindexlist = self._parse_indexed_expression(lhs)
-			
-		# parse the value
-		value = []
-		if rhs.lstrip().rstrip() != '':
-			if len(indexvalue)==0:
-				value = eval(rhs)
-			else:
-				value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
-		
-		return (name,indexvalue,value)	
-
-	def _parse_for_array_creation(self,expression):
-		"""
-		look for an array creating " for " keyword in a string
-		
-		some logic needs to be added to avoid returning " for " in a sum
-		"""
-		
-		loop = []
-		indexlist = []
-		indexvalue = []
-		
-		# find (  ) statements
-		bracepos = self._parse_matching_braces(expression,['(',')'])
-		
-		# find 'for  in' statements
-		forpos = [p.start(0) for p in re.finditer('for .*? in ',expression)]
-		
-		# check if the for loop is inside braces and ignore it if so
-		tempforpos = []
-		for p in forpos:
-			add = True
-			for b in bracepos:
-				if b[0] <= p and p <= b[1]:
-					add = False
-					break
-			if add:
-				tempforpos.append(p)
-		
-		forpos = tempforpos
-		
-		
-		# split the expression
-		if len(forpos) < 1:
-			content = expression.rstrip().lstrip()
-		else:
-			content = expression[:forpos[0]].rstrip().lstrip()
-			
-			for p in forpos[::-1]:
-				curloop = expression[p:].rstrip().lstrip()
-				loop.append( curloop )
-				
-				curindex = re.findall('for (.*?) in', curloop)[0].rstrip().lstrip()
-				indexlist.append( curindex )
-				
-				#indexvalue.append( eval( '['+ curindex + ' ' + curloop +']') )
-			
-				# remove the loop from the expression
-				expression = expression[:p]
-	
-			# reverse the lists
-			loop = loop[::-1]
-			indexlist = indexlist[::-1]
-			#indexvalue = indexvalue[::-1]
-			
-			# get the indexvalue
-			indexvalue = eval( '[('+ ','.join(indexlist) + ')' + ' '.join(loop) +']')
-				
-		return content,loop,indexlist,indexvalue
-		
-	def _parse_indexed_expression(self,expression):
-		"""
-		parse and indexed expression into the variable and a list of indices
-		
-		Parameters:
-			expression:		string, the expression
-			
-		Returns:
-			variable: 		string, the variable which is indexed
-			indexlist:		list, a list of index strings
-			
-		Example:
-			problem._parse_indexed_expression('x[i,j]')
-			problem._parse_indexed_expression('x[1,2]')
-		"""
-		
-		left_bracket = expression.find('[')
-		right_bracket = expression.find(']')
-		if left_bracket > -1:
-			variable = expression[:left_bracket].lstrip().rstrip()
-			indexlist = [i.lstrip().rstrip() for i in expression[left_bracket+1:right_bracket].split(',')]
-		else:
-			variable = expression.lstrip().rstrip()
-			indexlist = []
-		
-		return (variable,indexlist)
-	
-		
-	def _parse_equation(self,expression):
-		eqpos = expression.find('=')
-		gepos = expression.find('>=')
-		lepos = expression.find('<=')
-		
-		if gepos > 0:
-			lhs = expression[:gepos]
-			rhs = expression[gepos+2:]
-			type = 'G'
-		elif lepos > 0:
-			lhs = expression[:lepos]
-			rhs = expression[lepos+2:]
-			type = 'L'
-		elif eqpos > 0:
-			lhs = expression[:eqpos]
-			rhs = expression[eqpos+1:]
-			type = 'E'
-		else:
-			lhs = expression
-			rhs = ''
-			type = ''
-			
-		return (lhs,rhs,type)	
-		
-		
-	def _parse_matching_braces(self,expression,braces):
-		"""
-		finds the matching braces or brackets in a string
-		
-		Parameters:
-			expression: 	string, the expression to find braces in
-			braces: 		list with 2 strings, starting and ending brace
-		
-		Returns:
-			pairs:			list, with pairs lists
-		"""
-		
-		openpos = [p.start(0) for p in re.finditer(re.escape(braces[0]),expression)]
-		closepos = [p.start(0) for p in re.finditer(re.escape(braces[1]),expression)]
-		
-		openclosepos = [p.start(0) for p in re.finditer(re.escape(braces[0])+'|'+re.escape(braces[1]),expression)]
-		
-		pairs = []
-		for i,o in enumerate(openclosepos):
-			if o in openpos:
-				num_open = 0
-				num_close = 0
-				
-				for c in openclosepos[i:]:
-					if c in openpos:
-						num_open = num_open+1
-					if c in closepos:
-						num_close = num_close+1
-						
-					if num_open == num_close:
-						pairs.append([o,c])
-						break
-		
-		return pairs
-		

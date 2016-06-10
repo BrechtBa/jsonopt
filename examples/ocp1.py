@@ -15,25 +15,23 @@
 #    You should have received a copy of the GNU General Public License
 #    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
 
-import parsenlp
+
 import numpy as np
+import jsonopt
 
 # load the problem from a file in json format
 with open('json/ocp1.json', 'r') as jsonfile:
-    jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
+    jsonstring=jsonfile.read()
 
-	
 # parse the problem
-problem = parsenlp.Problem(jsonstring)
+problem = jsonopt.Problem(jsonstring=jsonstring)
 
 # solve and get the solution
 problem.solve()
-sol = problem.get_value_dict()
+values = problem.get_values()
 
-# plot
-t = np.arange(sol['p'].shape[0])
 
-print(sol['T'])
-print(sol['Q'])
-print(sol['P'])
+print(values['T'])
+print(values['Q'])
+print(values['P'])
 
