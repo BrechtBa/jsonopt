@@ -14,9 +14,9 @@ author_email='brecht.baeten@gmail.com'
 packages=['jsonopt']
 install_requires=['numpy','pyomo']
 classifiers = ['Programming Language :: Python :: 2.7']
-version = '0.1.0'
+version = '0.1.1'
 
-changelog = '* using pyomo for parsing the optimization problem'
+changelog = '* updated examples\n*moved parse functions to a separate module for readability\n*added support for some numpy special functions like sin, cos, exp,...'
 
 ################################################################################
 # do not edit
