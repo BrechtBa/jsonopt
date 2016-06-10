@@ -25,103 +25,103 @@ import jsonopt
 
 class TestProblemSolution(unittest.TestCase):
 
-	
-	def test_default(self):
-		with open('..//examples//json//hs071.json', 'r') as myfile:
-			jsonstring=myfile.read()
-			
-		problem = jsonopt.Problem(jsonstring=jsonstring)
-		
-		try:
-			problem.solve(verbosity=0)
-		except:
-			self.fail("solve() failed")
-		
-		
-	def test_get_value(self):
-		with open('..//examples//json//hs071.json', 'r') as myfile:
-			jsonstring=myfile.read()
-		
-		best_known_objective = 17.0140173
-		best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
-		
-		problem = jsonopt.Problem(jsonstring=jsonstring)
-		problem.set_value('x[0]',1.)
-		problem.set_value('x[1]',5.)
-		problem.set_value('x[2]',5.)
-		problem.set_value('x[3]',1.)
+    
+    def test_default(self):
+        with open('..//examples//json//hs071.json', 'r') as myfile:
+            jsonstring=myfile.read()
+            
+        problem = jsonopt.Problem(jsonstring=jsonstring)
+        
+        try:
+            problem.solve(verbosity=0)
+        except:
+            self.fail("solve() failed")
+        
+        
+    def test_get_value(self):
+        with open('..//examples//json//hs071.json', 'r') as myfile:
+            jsonstring=myfile.read()
+        
+        best_known_objective = 17.0140173
+        best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
+        
+        problem = jsonopt.Problem(jsonstring=jsonstring)
+        problem.set_value('x[0]',1.)
+        problem.set_value('x[1]',5.)
+        problem.set_value('x[2]',5.)
+        problem.set_value('x[3]',1.)
 
-		problem.solve(verbosity=0)
-		
-		maxdelta = np.max(np.abs(problem.get_value('x')-best_known_x))
-		self.assertLess(maxdelta,1e-3)
-		
-		
-	def test_get_value_nd(self):
-		problem = jsonopt.Problem()
-		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
-		
-		maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
-		self.assertEqual(maxdelta,0)
+        problem.solve(verbosity=0)
+        
+        maxdelta = np.max(np.abs(problem.get_value('x')-best_known_x))
+        self.assertLess(maxdelta,1e-3)
+        
+        
+    def test_get_value_nd(self):
+        problem = jsonopt.Problem()
+        problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+        
+        maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
+        self.assertEqual(maxdelta,0)
 
-		
-	def test_get_values(self):
-		with open('..//examples//json//hs071.json', 'r') as myfile:
-			jsonstring=myfile.read()
-			
-		best_known_objective = 17.0140173
-		best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
-		
-		problem = jsonopt.Problem(jsonstring=jsonstring)
-		problem.set_value('x[0]',1.)
-		problem.set_value('x[1]',5.)
-		problem.set_value('x[2]',5.)
-		problem.set_value('x[3]',1.)
+        
+    def test_get_values(self):
+        with open('..//examples//json//hs071.json', 'r') as myfile:
+            jsonstring=myfile.read()
+            
+        best_known_objective = 17.0140173
+        best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
+        
+        problem = jsonopt.Problem(jsonstring=jsonstring)
+        problem.set_value('x[0]',1.)
+        problem.set_value('x[1]',5.)
+        problem.set_value('x[2]',5.)
+        problem.set_value('x[3]',1.)
 
-		problem.solve(verbosity=0)
-		
-		values = problem.get_values()
-		maxdelta = np.max(np.abs(values['x']-best_known_x))
-		
-		self.assertEqual(values['A'],25)
-		self.assertEqual(values['B'],40)
-		self.assertEqual(values['C'],1)
-		self.assertEqual(values['D'],5)
-		self.assertLess(maxdelta,1e-3)
-		
-	def test_get_json_values(self):	
-		with open('..//examples//json//hs071.json', 'r') as myfile:
-			jsonstring=myfile.read()
-			
-			
-		problem = jsonopt.Problem(jsonstring=jsonstring)
-		problem.set_value('x[0]',1.)
-		problem.set_value('x[1]',5.)
-		problem.set_value('x[2]',5.)
-		problem.set_value('x[3]',1.)
+        problem.solve(verbosity=0)
+        
+        values = problem.get_values()
+        maxdelta = np.max(np.abs(values['x']-best_known_x))
+        
+        self.assertEqual(values['A'],25)
+        self.assertEqual(values['B'],40)
+        self.assertEqual(values['C'],1)
+        self.assertEqual(values['D'],5)
+        self.assertLess(maxdelta,1e-3)
+        
+    def test_get_json_values(self):    
+        with open('..//examples//json//hs071.json', 'r') as myfile:
+            jsonstring=myfile.read()
+            
+            
+        problem = jsonopt.Problem(jsonstring=jsonstring)
+        problem.set_value('x[0]',1.)
+        problem.set_value('x[1]',5.)
+        problem.set_value('x[2]',5.)
+        problem.set_value('x[3]',1.)
 
-		problem.solve(verbosity=0)
-		
-		try:
-			jsonsolution = problem.get_json_values()
-		except:
-			self.fail("could not retrieve json solution")
-		
-		
-	def test_getitem(self):
-		problem = jsonopt.Problem()
-		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
-		
-		maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
-		self.assertEqual(maxdelta,0)
-		
-	def test_getattr(self):
-		problem = jsonopt.Problem()
-		problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
-		
-		maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
-		self.assertEqual(maxdelta,0)
-			
-		
+        problem.solve(verbosity=0)
+        
+        try:
+            jsonsolution = problem.get_json_values()
+        except:
+            self.fail("could not retrieve json solution")
+        
+        
+    def test_getitem(self):
+        problem = jsonopt.Problem()
+        problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+        
+        maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
+        self.assertEqual(maxdelta,0)
+        
+    def test_getattr(self):
+        problem = jsonopt.Problem()
+        problem.add_parameter('p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
+        
+        maxdelta = np.max(np.abs( problem.get_value('p')-np.array([[0.20 if j==0 else 0.30 for j in range(5)] for i in range(24)]) ))
+        self.assertEqual(maxdelta,0)
+            
+        
 if __name__ == '__main__':
-	unittest.main()
+    unittest.main()

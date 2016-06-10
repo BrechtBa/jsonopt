@@ -25,7 +25,7 @@ import jsonopt
 with open('json/hs071.json', 'r') as jsonfile:
     jsonstring=jsonfile.read()
 
-	
+
 # parse the problem
 problem = jsonopt.Problem(jsonstring=jsonstring)
 

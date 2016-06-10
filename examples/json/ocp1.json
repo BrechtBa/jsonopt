@@ -1,33 +1,33 @@
 {
-	"variables":[
-		"Reals T[j]=20 for j in range(25)",
-		"Reals P[j]=0 for j in range(24)",
-		"Reals Q[j]=0 for j in range(24)",
-		"Reals COP[j]=3 for j in range(24)"
-	],
-	"parameters": [
-		"dt = 3600",
-		"p[j] = 0.20 for j in range(24)",
-		"Ta[j] = 2.0 + 2.0*sin(2*3.14159*j/24.) for j in range(24)",
-		"C = 1e6",
-		"UA = 200",
-		"COP0 = 5",
-		"DT0 = 40",
-		"Tmin = 20",
-		"Tmax = 25",
-		"Pmax = 2000",
-		"Qmax = 6000"
-	],
-	"objective": 
-		"sum([p[j]*P[j] for j in range(24)])",
-	"constraints":[
-		"C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)",
-		"T[24] = T[0]",
-		"COP[j] = COP0 - COP0*(T[j]-Ta[j])**2/DT0**2 for j in range(24)",
-		"Q[j] = COP[j]*P[j] for j in range(24)",
-		"Tmin <= T[j] for j in range(24)",
-		"T[j] <= Tmax for j in range(24)",
-		"0<= Q[j] for j in range(24)",
-		"Q[j] <= Qmax for j in range(24)"
-	]
+    "variables":[
+        "Reals T[j]=20 for j in range(25)",
+        "Reals P[j]=0 for j in range(24)",
+        "Reals Q[j]=0 for j in range(24)",
+        "Reals COP[j]=3 for j in range(24)"
+    ],
+    "parameters": [
+        "dt = 3600",
+        "p[j] = 0.20 for j in range(24)",
+        "Ta[j] = 2.0 + 2.0*sin(2*3.14159*j/24.) for j in range(24)",
+        "C = 1e6",
+        "UA = 200",
+        "COP0 = 5",
+        "DT0 = 40",
+        "Tmin = 20",
+        "Tmax = 25",
+        "Pmax = 2000",
+        "Qmax = 6000"
+    ],
+    "objective": 
+        "sum([p[j]*P[j] for j in range(24)])",
+    "constraints":[
+        "C*(T[j+1]-T[j])/dt = Q[j] - UA*(T[j]-Ta[j]) for j in range(24)",
+        "T[24] = T[0]",
+        "COP[j] = COP0 - COP0*(T[j]-Ta[j])**2/DT0**2 for j in range(24)",
+        "Q[j] = COP[j]*P[j] for j in range(24)",
+        "Tmin <= T[j] for j in range(24)",
+        "T[j] <= Tmax for j in range(24)",
+        "0<= Q[j] for j in range(24)",
+        "Q[j] <= Qmax for j in range(24)"
+    ]
 }
