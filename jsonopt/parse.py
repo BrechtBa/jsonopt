@@ -20,6 +20,8 @@
 import re
 import numpy as np
 
+import util
+
 def variable(expression):	
 	"""
 	parses variables or parameters and returns required values
@@ -53,10 +55,13 @@ def variable(expression):
 	# parse the value
 	value = []
 	if rhs.lstrip().rstrip() != '':
+		evalvars = dict(vars())
+		evalvars.update(util.specialfunctions)
+		
 		if len(indexvalue)==0:
-			value = eval(rhs)
+			value = eval(rhs,evalvars)
 		else:
-			value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',vars()) )
+			value = np.array( eval('[ '*len(loop) + rhs + ' ' + ' ] '.join(loop[::-1]) + ' ]',evalvars) )
 	
 	return (name,indexvalue,value)	
 
@@ -132,7 +137,9 @@ def for_array_creation(expression):
 		#indexvalue = indexvalue[::-1]
 		
 		# get the indexvalue
-		indexvalue = eval( '[('+ ','.join(indexlist) + ')' + ' '.join(loop) +']')
+		evalvars = dict(vars())
+		evalvars.update(util.specialfunctions)
+		indexvalue = eval( '[('+ ','.join(indexlist) + ')' + ' '.join(loop) +']', evalvars)
 			
 	return content,loop,indexlist,indexvalue
 	

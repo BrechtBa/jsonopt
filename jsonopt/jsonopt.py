@@ -27,6 +27,7 @@ import pyomo.environ as pm
 import pyomo.core.base.set_types
 
 import parse
+import util
 
 class Problem:
 	"""
@@ -176,7 +177,8 @@ class Problem:
 		# create a vars dict
 		pmvars = dict(self.variables)
 		pmvars.update(self.parameters)
-
+		pmvars.update(util.specialfunctions)
+		
 		# add the constraint
 		if len(indexvalue)==0:
 			setattr(self.model, name, pm.Constraint(expr=eval(pmexpression,pmvars)))
@@ -204,6 +206,7 @@ class Problem:
 		# create a vars dict
 		pmvars = dict(self.variables)
 		pmvars.update(self.parameters)
+		pmvars.update(util.specialfunctions)
 		
 		def rule(model,*args):
 			return eval( expression, pmvars )
