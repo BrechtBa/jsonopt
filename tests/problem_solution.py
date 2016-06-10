@@ -41,10 +41,16 @@ class TestProblemSolution(unittest.TestCase):
 	def test_get_value(self):
 		with open('..//examples//json//hs071.json', 'r') as myfile:
 			jsonstring=myfile.read()
-			
-		best_known_x = np.array([0.99999999,  5.00000005,  1.44948976,  3.44948967])
+		
+		best_known_objective = 17.0140173
+		best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
 		
 		problem = jsonopt.Problem(jsonstring=jsonstring)
+		problem.set_value('x[0]',1.)
+		problem.set_value('x[1]',5.)
+		problem.set_value('x[2]',5.)
+		problem.set_value('x[3]',1.)
+
 		problem.solve(verbosity=0)
 		
 		maxdelta = np.max(np.abs(problem.get_value('x')-best_known_x))
@@ -63,9 +69,15 @@ class TestProblemSolution(unittest.TestCase):
 		with open('..//examples//json//hs071.json', 'r') as myfile:
 			jsonstring=myfile.read()
 			
-		best_known_x = np.array([0.99999999,  5.00000005,  1.44948976,  3.44948967])
-			
+		best_known_objective = 17.0140173
+		best_known_x = np.array([ 0.99999999,  4.74299964,  3.82114998,  1.37940829])
+		
 		problem = jsonopt.Problem(jsonstring=jsonstring)
+		problem.set_value('x[0]',1.)
+		problem.set_value('x[1]',5.)
+		problem.set_value('x[2]',5.)
+		problem.set_value('x[3]',1.)
+
 		problem.solve(verbosity=0)
 		
 		values = problem.get_values()
@@ -81,9 +93,13 @@ class TestProblemSolution(unittest.TestCase):
 		with open('..//examples//json//hs071.json', 'r') as myfile:
 			jsonstring=myfile.read()
 			
-		best_known_x = np.array([0.99999999,  5.00000005,  1.44948976,  3.44948967])
 			
 		problem = jsonopt.Problem(jsonstring=jsonstring)
+		problem.set_value('x[0]',1.)
+		problem.set_value('x[1]',5.)
+		problem.set_value('x[2]',5.)
+		problem.set_value('x[3]',1.)
+
 		problem.solve(verbosity=0)
 		
 		try:

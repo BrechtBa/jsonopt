@@ -1,46 +1,37 @@
-#!/usr/bin/python3
-
-#    This file is part of parsenlp.
+#!/usr/bin/env/ python
+################################################################################
+#    Copyright 2016 Brecht Baeten
+#    This file is part of jsonopt.
 #
-#    parsenlp is free software: you can redistribute it and/or modify
+#    jsonopt is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    parsenlp is distributed in the hope that it will be useful,
+#    jsonopt is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with parsenlp.  If not, see <http://www.gnu.org/licenses/>.
+#    along with jsonopt.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
 
-import parsenlp
 import numpy as np
+
+import jsonopt
 
 # load the problem from a file in json format
 with open('json/hs101.json', 'r') as jsonfile:
-    jsonstring=jsonfile.read().replace('\n', '').replace('\t', ' ')
+    jsonstring=jsonfile.read()
 
-best_known_objective = 1809.76476
 	
 # parse the problem
-problem = parsenlp.Problem(jsonstring)
-
-# set initial guess
-x = problem.get_values()
-x[:7] = 6
+problem = jsonopt.Problem(jsonstring=jsonstring)
 
 # solve and get the solution
-problem.solve(x0=x)
-sol = problem.get_value_dict()
-obj = problem.objective(problem.get_values()) 
+problem.solve()
+values = problem.get_values()
 
-print( 'solution: {}'.format(sol['x']) )
-print( 'objective: {}'.format(obj) )
-
-
-if abs((obj - best_known_objective)/best_known_objective) < 0.001:
-	print( 'OK' )
-else:
-	print( 'NOK, best known objective: {}, current objective: {}'.format(best_known_objective,obj) )
+print( 'solution: {}'.format(values['x']) )
+print( 'objective: {}'.format(values['objective']) )

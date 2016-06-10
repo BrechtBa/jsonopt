@@ -215,6 +215,7 @@ class Problem:
 	def solve(self,solver='ipopt',solveroptions={},verbosity=1):
 		"""
 		solves the problem
+			
 		"""
 		
 		# parse inputs
@@ -236,8 +237,10 @@ class Problem:
 			var = self.variables[name]
 		elif name in self.parameters:
 			var = self.parameters[name]
+		elif name == 'objective':
+			var = self.objective
 		else:
-			raise KeyError('{} is not a variable or parameter'.format(name))
+			raise KeyError('{} is not a variable or parameter or the objective'.format(name))
 			
 		return var
 		
@@ -278,7 +281,10 @@ class Problem:
 		var = self.get_variable(name)
 	
 		if len(var)==1:
-			return var.value
+			if var.__class__.__name__== 'SimpleObjective':
+				return var.expr()
+			else:
+				return var.value
 		else:
 			dim = var.keys()[0]
 			if isinstance( dim, int ):
@@ -303,6 +309,8 @@ class Problem:
 					value[key] = var[key]
 				
 			return value
+			
+			
 	def get_json_value(self,name):
 		"""
 		"""
@@ -322,7 +330,9 @@ class Problem:
 		
 		for key in self.parameters:
 			values[key] = self.get_value(key)
-			
+		
+		values['objective'] = self.get_value('objective')
+		
 		return values
 	
 	def get_json_values(self):
