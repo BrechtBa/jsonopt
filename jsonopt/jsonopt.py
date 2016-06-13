@@ -42,6 +42,14 @@ class Problem:
         
         Parameters:
             jsonstring:     nlp definition in json format
+        
+        Returns:
+            jsonopt.Problem instance
+        
+        Example:
+            problem = jsonopt.Problem('{"variables": ["Reals x[j] for j in range(4)"], "parameters": ["A = 25", "B = 40","C = 1","D = 5"], "objective": "x[0]*x[3]*(x[0]+x[1]+x[2])+x[2]", "constraints": ["x[0]*x[1]*x[2]*x[3] >= A", "x[0]**2+x[1]**2+x[2]**2+x[3]**2 = B", "x[j] >= C for j in range(4)", "x[j] <= D for j in range(4)"]}')
+            problem.solve()
+            problem.get_json_value()
         """
         
         self.model = pm.ConcreteModel()
@@ -80,7 +88,6 @@ class Problem:
             expression:     string, variable name expression in python code with optional default value
             
         Example:
-            problem = jsonipopt.Problem()
             problem.add_variable('Reals x[j] for j in range(25)')
             problem.add_variable('Reals p[i,j] = 0.20 if j==0 else 0.30 for i in range(24) for j in range(5)')
         """
@@ -140,7 +147,6 @@ class Problem:
         self.parameters[name] = getattr(self.model, name)
         
         
-        
     def add_constraint(self,expression,name=None):        
         """
         Adds a constraint to the problem from a string expression
@@ -192,9 +198,10 @@ class Problem:
         
         self.constraints[name] = getattr(self.model,name)
         
+        
     def set_objective(self,expression):        
         """
-        sets the objective function of the problem from a string expression
+        Sets the objective function of the problem from a string expression
         
         Parameters:
             expression:     string, equation or inequality expression in python code
@@ -217,8 +224,15 @@ class Problem:
     
     def solve(self,solver='ipopt',solveroptions={},verbosity=1):
         """
-        solves the problem
+        Solves the problem
+        
+        Parameters:
+            solver='ipopt':     string, an installed solver which pyomo supports
+            solveroptions={}:   dict, a dictionary with solver options
+            verbosity=1:        number, specifies the level of output printing during the solution, 0: no output
             
+        Example:
+            problem.solve()
         """
         
         # parse inputs
@@ -228,33 +242,16 @@ class Problem:
             
         optimizer = pm.SolverFactory(solver)
         results = optimizer.solve(self.model,options=solveroptions,tee=tee)
-    
-    def get_variable(self,name):
-        """
-        gets a variable
         
-        Parameters:
-            name:       string
-        """
-        if name in self.variables:
-            var = self.variables[name]
-        elif name in self.parameters:
-            var = self.parameters[name]
-        elif name == 'objective':
-            var = self.objective
-        else:
-            raise KeyError('{} is not a variable or parameter or the objective'.format(name))
-            
-        return var
         
     def set_value(self,name,value):
         """
-        sets the value of a variable or parameter
+        Sets the value of a variable (initial value) or parameter
         
         Parameters:
-            name:         string, the variable name, this can be an indexed string
-            value:        number, the value of the variable
-        
+            name:           string, the variable name, this can be an indexed string
+            value:          number, the value of the variable
+
         Example:
             problem.set_value('A',1)
             problem.set_value('x[3]',1)
@@ -262,7 +259,7 @@ class Problem:
         
         # check if the name is an indexed string
         (varname,indexlist) = parse.indexed_expression(name)
-        var = self.get_variable(varname)
+        var = self._get_variable(varname)
         
         if len(indexlist)==0:
             var.set_value(value)
@@ -275,13 +272,19 @@ class Problem:
                 
     def get_value(self,name):
         """
-        gets the value of a variable or parameter
+        Gets the value of a variable or parameter
         
         Parameters:
-            name:        string
+            name:      string
+        
+        Returns:
+            numpy.array
+        
+        Example:
+            problem.get_value('x')
         """
         
-        var = self.get_variable(name)
+        var = self._get_variable(name)
     
         if len(var)==1:
             if var.__class__.__name__== 'SimpleObjective':
@@ -316,6 +319,16 @@ class Problem:
             
     def get_json_value(self,name):
         """
+        Gets the value of a variable or parameter in json format
+        
+        Parameters:
+            name:        string
+            
+        Returns:
+            string
+            
+        Example:
+            problem.get_json_value('x')
         """
         value = self.get_value(name)
         if type(value).__module__ == np.__name__:
@@ -323,9 +336,19 @@ class Problem:
                 
         return json.dumps(value)
     
+    
     def get_values(self):
         """
-        returns the values of all variables and parameters in a dictionary
+        Gets the values of all variables and parameters in a dictionary
+        
+        Parameters:
+            /
+            
+        Returns:
+            dictionary
+        
+        Example:
+            problem.get_values()
         """
         values = {}
         for key in self.variables:
@@ -338,8 +361,19 @@ class Problem:
         
         return values
     
+    
     def get_json_values(self):
         """
+        Gets the values of all variables and parameters in json format
+        
+        Parameters:
+            /
+            
+        Returns:
+            string
+            
+        Example:
+            problem.get_json_values()
         """
         values = self.get_values()
         
@@ -353,7 +387,29 @@ class Problem:
     
     def __getitem__(self,name):
         return self.get_value(name)
-            
+          
+          
     def __getattr__(self,name):
         return self.get_value(name)
     
+    
+    def _get_variable(self,name):
+        """
+        Gets a variable
+        
+        Parameters:
+            name:           string
+            
+        Returns:
+            pyomo variable, parameter of objective instance
+        """
+        if name in self.variables:
+            var = self.variables[name]
+        elif name in self.parameters:
+            var = self.parameters[name]
+        elif name == 'objective':
+            var = self.objective
+        else:
+            raise KeyError('{} is not a variable or parameter or the objective'.format(name))
+            
+        return var
